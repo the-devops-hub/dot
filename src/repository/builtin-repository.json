@@ -1,0 +1,713 @@
+{
+    "name": "the-devops-hub",
+    "description": "Default DevOps toolbox repository",
+    "tools": [
+        {
+            "id": "helm",
+            "name": "Helm",
+            "description": "The Kubernetes Package Manager",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://helm.sh",
+            "brew_formula": "helm",
+            "aliases": [
+                "h"
+            ],
+            "version_source": {
+                "type": "github_release",
+                "repo": "helm/helm",
+                "filter": "v3."
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://get.helm.sh/helm-v{version}-{os}-{arch}.tar.gz",
+                "binary_in_archive": "{os}-{arch}/helm",
+                "checksum_url_template": "https://get.helm.sh/helm-v{version}-{os}-{arch}.tar.gz.sha256sum"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(helm completion bash)",
+                "zsh_cmd": "source <(helm completion zsh)",
+                "fish_cmd": "helm completion fish | source"
+            },
+            "post_install": [
+                "helm plugin list | grep -q '^diff' || helm plugin install https://github.com/databus23/helm-diff",
+                "helm plugin list | grep -q '^secrets' || helm plugin install https://github.com/jkroepke/helm-secrets",
+                "helm plugin list | grep -q '^helm-git' || helm plugin install https://github.com/aslafy-z/helm-git"
+            ],
+            "post_upgrade": [
+                "helm plugin update diff",
+                "helm plugin update secrets",
+                "helm plugin update helm-git"
+            ]
+        },
+        {
+            "id": "kubectl",
+            "name": "kubectl",
+            "description": "The Kubernetes command-line tool",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://kubernetes.io/docs/reference/kubectl/",
+            "brew_formula": "kubernetes-cli",
+            "aliases": [
+                "k"
+            ],
+            "version_source": {
+                "type": "k8s_stable_txt"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://dl.k8s.io/release/v{version}/bin/{os}/{arch}/kubectl"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(kubectl completion bash)",
+                "zsh_cmd": "source <(kubectl completion zsh)",
+                "fish_cmd": "kubectl completion fish | source"
+            }
+        },
+        {
+            "id": "argocd",
+            "name": "ArgoCD CLI",
+            "description": "CLI for Argo CD — GitOps continuous delivery for Kubernetes",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://argo-cd.readthedocs.io",
+            "brew_formula": "argocd",
+            "version_source": {
+                "type": "github_release",
+                "repo": "argoproj/argo-cd"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/argoproj/argo-cd/releases/download/v{version}/argocd-{os}-{arch}"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(argocd completion bash)",
+                "zsh_cmd": "source <(argocd completion zsh)",
+                "fish_cmd": "argocd completion fish | source"
+            }
+        },
+        {
+            "id": "k9s",
+            "name": "k9s",
+            "description": "Terminal UI to interact with Kubernetes clusters",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://k9scli.io",
+            "brew_formula": "k9s",
+            "version_source": {
+                "type": "github_release",
+                "repo": "derailed/k9s"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/derailed/k9s/releases/download/v{version}/k9s_{os}_{arch}.tar.gz",
+                "binary_in_archive": "k9s"
+            }
+        },
+        {
+            "id": "kubelogin",
+            "name": "kubelogin",
+            "description": "kubectl plugin for Kubernetes OpenID Connect authentication",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://github.com/int128/kubelogin",
+            "brew_formula": "int128/kubelogin/kubelogin",
+            "version_source": {
+                "type": "github_release",
+                "repo": "int128/kubelogin"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/int128/kubelogin/releases/download/v{version}/kubelogin_{os}_{arch}.zip",
+                "binary_in_archive": "kubelogin",
+                "checksum_url_template": "https://github.com/int128/kubelogin/releases/download/v{version}/kubelogin_{os}_{arch}.zip.sha256"
+            }
+        },
+        {
+            "id": "krr",
+            "name": "Robusta KRR",
+            "description": "Prometheus-based Kubernetes resource recommendations for CPU and memory",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://github.com/robusta-dev/krr",
+            "version_source": {
+                "type": "github_release",
+                "repo": "robusta-dev/krr"
+            },
+            "strategy": {
+                "type": "tarball",
+                "url_template": "https://github.com/robusta-dev/krr/releases/download/v{version}/krr-ubuntu-latest-v{version}.zip",
+                "sdk_dir": "krr",
+                "symlinks": ["krr"]
+            }
+        },
+        {
+            "id": "kubeseal",
+            "name": "kubeseal",
+            "description": "Encrypt Kubernetes secrets into SealedSecrets safe for GitOps storage",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://github.com/bitnami-labs/sealed-secrets",
+            "version_source": {
+                "type": "github_release",
+                "repo": "bitnami-labs/sealed-secrets"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/bitnami-labs/sealed-secrets/releases/download/v{version}/kubeseal-{version}-{os}-{arch}.tar.gz",
+                "binary_in_archive": "kubeseal"
+            }
+        },
+        {
+            "id": "kubens",
+            "name": "kubens",
+            "description": "Switch between Kubernetes namespaces quickly",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://github.com/ahmetb/kubectx",
+            "brew_formula": "kubectx",
+            "version_source": {
+                "type": "github_release",
+                "repo": "ahmetb/kubectx"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/ahmetb/kubectx/releases/download/v{version}/kubens_v{version}_{os}_{arch_alt}.tar.gz",
+                "binary_in_archive": "kubens"
+            }
+        },
+        {
+            "id": "tflint",
+            "name": "tflint",
+            "description": "A pluggable Terraform linter",
+            "groups": [
+                "iac"
+            ],
+            "homepage": "https://github.com/terraform-linters/tflint",
+            "brew_formula": "tflint",
+            "version_source": {
+                "type": "github_release",
+                "repo": "terraform-linters/tflint"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/terraform-linters/tflint/releases/download/v{version}/tflint_{os}_{arch}.zip",
+                "binary_in_archive": "tflint"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(tflint --init 2>/dev/null; tflint completion bash 2>/dev/null)",
+                "zsh_cmd": null,
+                "fish_cmd": null
+            }
+        },
+        {
+            "id": "hcledit",
+            "name": "hcledit",
+            "description": "A command line editor for HCL",
+            "groups": [
+                "iac"
+            ],
+            "homepage": "https://github.com/minamijoyo/hcledit",
+            "brew_formula": "hcledit",
+            "version_source": {
+                "type": "github_release",
+                "repo": "minamijoyo/hcledit"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/minamijoyo/hcledit/releases/download/v{version}/hcledit_{version}_{os}_{arch}.tar.gz",
+                "binary_in_archive": "hcledit"
+            }
+        },
+        {
+            "id": "terraform-docs",
+            "name": "terraform-docs",
+            "description": "Generate documentation from Terraform modules",
+            "groups": [
+                "iac"
+            ],
+            "homepage": "https://terraform-docs.io",
+            "brew_formula": "terraform-docs",
+            "version_source": {
+                "type": "github_release",
+                "repo": "terraform-docs/terraform-docs"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/terraform-docs/terraform-docs/releases/download/v{version}/terraform-docs-v{version}-{os}-{arch}.tar.gz",
+                "binary_in_archive": "terraform-docs"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(terraform-docs completion bash)",
+                "zsh_cmd": "source <(terraform-docs completion zsh)",
+                "fish_cmd": "terraform-docs completion fish | source"
+            }
+        },
+        {
+            "id": "terraform",
+            "name": "Terraform",
+            "description": "Infrastructure as Code tool by HashiCorp",
+            "groups": [
+                "iac"
+            ],
+            "homepage": "https://www.terraform.io",
+            "brew_formula": "hashicorp/tap/terraform",
+            "aliases": [
+                "tf"
+            ],
+            "version_source": {
+                "type": "hashicorp",
+                "product": "terraform"
+            },
+            "strategy": {
+                "type": "hashicorp_release",
+                "product": "terraform"
+            },
+            "shell_completions": {
+                "bash_cmd": "complete -C terraform terraform",
+                "zsh_cmd": "complete -C terraform terraform",
+                "fish_cmd": null
+            }
+        },
+        {
+            "id": "vault",
+            "name": "Vault",
+            "description": "Secrets management tool by HashiCorp",
+            "groups": [
+                "security"
+            ],
+            "homepage": "https://www.vaultproject.io",
+            "brew_formula": "hashicorp/tap/vault",
+            "version_source": {
+                "type": "hashicorp",
+                "product": "vault"
+            },
+            "strategy": {
+                "type": "hashicorp_release",
+                "product": "vault"
+            },
+            "shell_completions": {
+                "bash_cmd": "complete -C vault vault",
+                "zsh_cmd": "complete -C vault vault",
+                "fish_cmd": null
+            }
+        },
+        {
+            "id": "ansible",
+            "name": "Ansible",
+            "description": "IT automation platform for configuration management and deployment",
+            "groups": [
+                "cm"
+            ],
+            "homepage": "https://www.ansible.com",
+            "brew_formula": "ansible",
+            "version_source": {
+                "type": "pypi",
+                "package": "ansible"
+            },
+            "strategy": {
+                "type": "pip_venv",
+                "package": "ansible",
+                "install_dir_rel": "~/.local/opt/ansible",
+                "binary_name": "ansible",
+                "extra_binaries": [
+                    "ansible-playbook",
+                    "ansible-vault",
+                    "ansible-galaxy",
+                    "ansible-doc"
+                ]
+            }
+        },
+        {
+            "id": "terragrunt",
+            "name": "Terragrunt",
+            "description": "Thin wrapper for Terraform/OpenTofu that provides DRY configurations and remote state management",
+            "groups": [
+                "iac"
+            ],
+            "homepage": "https://terragrunt.gruntwork.io",
+            "brew_formula": "terragrunt",
+            "aliases": [
+                "tg"
+            ],
+            "version_source": {
+                "type": "github_release",
+                "repo": "gruntwork-io/terragrunt",
+                "strip_prefix": "v"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/gruntwork-io/terragrunt/releases/download/v{version}/terragrunt_{os}_{arch}"
+            }
+        },
+        {
+            "id": "opentofu",
+            "name": "OpenTofu",
+            "description": "Open-source fork of Terraform — community-governed drop-in replacement",
+            "groups": [
+                "iac"
+            ],
+            "homepage": "https://opentofu.org",
+            "brew_formula": "opentofu",
+            "version_source": {
+                "type": "github_release",
+                "repo": "opentofu/opentofu",
+                "strip_prefix": "v"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/opentofu/opentofu/releases/download/v{version}/tofu_{version}_{os}_{arch}.zip",
+                "binary_in_archive": "tofu"
+            },
+            "shell_completions": {
+                "bash_cmd": "complete -C tofu tofu",
+                "zsh_cmd": "complete -C tofu tofu",
+                "fish_cmd": null
+            }
+        },
+        {
+            "id": "yq",
+            "name": "yq",
+            "description": "Portable command-line YAML, JSON, XML and CSV processor",
+            "groups": [
+                "utils"
+            ],
+            "homepage": "https://github.com/mikefarah/yq",
+            "brew_formula": "yq",
+            "version_source": {
+                "type": "github_release",
+                "repo": "mikefarah/yq"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/mikefarah/yq/releases/download/v{version}/yq_{os}_{arch}"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(yq shell-completion bash)",
+                "zsh_cmd": "source <(yq shell-completion zsh)",
+                "fish_cmd": "yq shell-completion fish | source"
+            }
+        },
+        {
+            "id": "tldr",
+            "name": "tldr",
+            "description": "Simplified, community-driven man pages for command-line tools",
+            "groups": [
+                "utils"
+            ],
+            "homepage": "https://tldr.sh",
+            "brew_formula": "tealdeer",
+            "version_source": {
+                "type": "github_release",
+                "repo": "dbrgn/tealdeer",
+                "strip_prefix": "v",
+                "require_asset": "tealdeer-linux-"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/dbrgn/tealdeer/releases/download/v{version}/tealdeer-linux-{arch_uname}-musl"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(tldr --generate-completion bash)",
+                "zsh_cmd": "source <(tldr --generate-completion zsh)",
+                "fish_cmd": "tldr --generate-completion fish | source"
+            }
+        },
+        {
+            "id": "jq",
+            "name": "jq",
+            "description": "Lightweight and flexible command-line JSON processor",
+            "groups": [
+                "utils"
+            ],
+            "homepage": "https://jqlang.github.io/jq/",
+            "brew_formula": "jq",
+            "version_source": {
+                "type": "github_release",
+                "repo": "jqlang/jq",
+                "strip_prefix": "jq-"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/jqlang/jq/releases/download/jq-{version}/jq-{os}-{arch}"
+            }
+        },
+        {
+            "id": "gh",
+            "name": "GitHub CLI",
+            "description": "GitHub's official command line tool",
+            "groups": [
+                "cm"
+            ],
+            "homepage": "https://cli.github.com",
+            "brew_formula": "gh",
+            "version_source": {
+                "type": "github_release",
+                "repo": "cli/cli"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/cli/cli/releases/download/v{version}/gh_{version}_{os}_{arch}.tar.gz",
+                "binary_in_archive": "gh_{version}_{os}_{arch}/bin/gh"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(gh completion -s bash)",
+                "zsh_cmd": "source <(gh completion -s zsh)",
+                "fish_cmd": "gh completion -s fish | source"
+            }
+        },
+        {
+            "id": "lazygit",
+            "name": "lazygit",
+            "description": "Simple terminal UI for git commands",
+            "groups": [
+                "cm"
+            ],
+            "homepage": "https://github.com/jesseduffield/lazygit",
+            "brew_formula": "lazygit",
+            "aliases": ["lg"],
+            "version_source": {
+                "type": "github_release",
+                "repo": "jesseduffield/lazygit"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/jesseduffield/lazygit/releases/download/v{version}/lazygit_{version}_{os_title}_{arch_alt}.tar.gz",
+                "binary_in_archive": "lazygit"
+            }
+        },
+        {
+            "id": "btop",
+            "name": "btop",
+            "description": "Resource monitor that shows usage and stats for CPU, memory, disk and network",
+            "groups": [
+                "utils"
+            ],
+            "homepage": "https://github.com/aristocratos/btop",
+            "version_source": {
+                "type": "github_release",
+                "repo": "aristocratos/btop"
+            },
+            "strategy": {
+                "type": "system_package",
+                "pacman": "btop",
+                "apt": "btop",
+                "dnf": "btop",
+                "brew": "btop",
+                "flatpak": "com.github.aristocratos.btop"
+            }
+        },
+        {
+            "id": "podman",
+            "name": "Podman",
+            "description": "Daemonless container engine for OCI containers",
+            "groups": [
+                "containers"
+            ],
+            "homepage": "https://podman.io",
+            "version_source": {
+                "type": "github_release",
+                "repo": "containers/podman"
+            },
+            "strategy": {
+                "type": "system_package",
+                "pacman": "podman",
+                "apt": "podman",
+                "dnf": "podman",
+                "brew": "podman"
+            }
+        },
+        {
+            "id": "podman-compose",
+            "name": "podman-compose",
+            "description": "Docker Compose implementation for Podman (enables `podman compose`)",
+            "groups": [
+                "containers"
+            ],
+            "homepage": "https://github.com/containers/podman-compose",
+            "version_source": {
+                "type": "pypi",
+                "package": "podman-compose"
+            },
+            "strategy": {
+                "type": "pip_venv",
+                "package": "podman-compose",
+                "install_dir_rel": "~/.local/opt/podman-compose",
+                "binary_name": "podman-compose"
+            }
+        },
+        {
+            "id": "aws",
+            "name": "AWS CLI",
+            "description": "Unified command line interface for Amazon Web Services",
+            "groups": [
+                "cloud"
+            ],
+            "homepage": "https://aws.amazon.com/cli/",
+            "brew_formula": "awscli",
+            "version_source": {
+                "type": "github_tags",
+                "repo": "aws/aws-cli",
+                "filter": "2."
+            },
+            "strategy": {
+                "type": "tarball",
+                "url_template": "https://awscli.amazonaws.com/awscli-exe-linux-{arch_uname}.zip",
+                "strip_components": 0,
+                "install_script": "aws/install",
+                "install_script_args": "-i {opt_dir} -b {bin_dir} --update"
+            },
+            "shell_completions": {
+                "bash_cmd": "complete -C \"$HOME/.local/bin/aws_completer\" aws",
+                "zsh_cmd": "complete -C \"$HOME/.local/bin/aws_completer\" aws",
+                "fish_cmd": "complete -c aws -f -a '(begin; set -lx COMP_LINE (commandline); set -lx COMP_POINT (string length (commandline)); $HOME/.local/bin/aws_completer; end)'"
+            }
+        },
+        {
+            "id": "gcloud",
+            "name": "Google Cloud SDK",
+            "description": "Command line tools for Google Cloud Platform",
+            "groups": [
+                "cloud"
+            ],
+            "homepage": "https://cloud.google.com/sdk",
+            "version_source": {
+                "type": "gcloud_sdk"
+            },
+            "strategy": {
+                "type": "tarball",
+                "url_template": "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-{version}-{os}-{arch_uname}.tar.gz",
+                "strip_components": 0,
+                "sdk_dir": "google-cloud-sdk",
+                "install_script": "install.sh",
+                "install_script_args": "--quiet --usage-reporting false --command-completion false --path-update false",
+                "symlinks": [
+                    "bin/gcloud",
+                    "bin/gsutil",
+                    "bin/bq"
+                ]
+            },
+            "shell_completions": {
+                "bash_cmd": "source \"$HOME/.local/opt/google-cloud-sdk/completion.bash.inc\"",
+                "zsh_cmd": "source \"$HOME/.local/opt/google-cloud-sdk/completion.zsh.inc\"",
+                "fish_cmd": null
+            }
+        },
+        {
+            "id": "oci",
+            "name": "OCI CLI",
+            "description": "Command line interface for Oracle Cloud Infrastructure",
+            "groups": [
+                "cloud"
+            ],
+            "homepage": "https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/",
+            "brew_formula": "oci-cli",
+            "version_source": {
+                "type": "pypi",
+                "package": "oci-cli"
+            },
+            "strategy": {
+                "type": "pip_venv",
+                "package": "oci-cli",
+                "install_dir_rel": "~/.local/opt/oci-cli",
+                "binary_name": "oci"
+            }
+        },
+        {
+            "id": "starship",
+            "name": "Starship",
+            "description": "The minimal, blazing-fast, and infinitely customizable prompt for any shell",
+            "groups": [
+                "terminal"
+            ],
+            "homepage": "https://starship.rs",
+            "brew_formula": "starship",
+            "version_source": {
+                "type": "github_release",
+                "repo": "starship/starship"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/starship/starship/releases/download/v{version}/starship-{arch_uname}-unknown-{os}-musl.tar.gz",
+                "binary_in_archive": "starship"
+            },
+            "shell_completions": {
+                "bash_cmd": "eval \"$(starship init bash)\"",
+                "zsh_cmd": "eval \"$(starship init zsh)\"",
+                "fish_cmd": "starship init fish | source"
+            }
+        },
+        {
+            "id": "trivy",
+            "name": "Trivy",
+            "description": "Comprehensive security scanner for containers, filesystems, and IaC",
+            "groups": [
+                "security"
+            ],
+            "homepage": "https://trivy.dev",
+            "brew_formula": "trivy",
+            "version_source": {
+                "type": "github_release",
+                "repo": "aquasecurity/trivy",
+                "strip_prefix": "v"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/aquasecurity/trivy/releases/download/v{version}/trivy_{version}_{os_title}-64bit.tar.gz",
+                "binary_in_archive": "trivy"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(trivy completion bash)",
+                "zsh_cmd": "source <(trivy completion zsh)",
+                "fish_cmd": "trivy completion fish | source"
+            }
+        },
+        {
+            "id": "zig",
+            "name": "Zig",
+            "description": "General-purpose programming language and toolchain",
+            "groups": [
+                "dev"
+            ],
+            "homepage": "https://ziglang.org",
+            "version_source": {
+                "type": "ziglang"
+            },
+            "strategy": {
+                "type": "tarball",
+                "url_template": "https://ziglang.org/download/{version}/zig-{arch_uname}-{os_zig}-{version}.tar.xz",
+                "strip_components": 0,
+                "sdk_dir": "zig-{arch_uname}-{os_zig}-{version}",
+                "sdk_name": "zig",
+                "symlinks": ["zig"]
+            }
+        },
+        {
+            "id": "go",
+            "name": "Go",
+            "description": "Open source programming language by Google",
+            "groups": [
+                "dev"
+            ],
+            "homepage": "https://go.dev",
+            "version_source": {
+                "type": "go_dl"
+            },
+            "strategy": {
+                "type": "tarball",
+                "url_template": "https://go.dev/dl/go{version}.{os}-{arch}.tar.gz",
+                "strip_components": 0,
+                "sdk_dir": "go",
+                "symlinks": ["bin/go", "bin/gofmt"]
+            }
+        }
+    ]
+}

@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+
+      - name: Run release checks
+        run: ./scripts/release-check.sh "${{ github.ref_name }}"
+
+  release:
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            targets: "x86_64-linux-musl aarch64-linux-musl"
+          - os: macos-latest
+            targets: "aarch64-macos x86_64-macos"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+
+      - name: Build and package all targets
+        run: |
+          for target in ${{ matrix.targets }}; do
+            raw_arch=$(echo "$target" | cut -d- -f1)
+            raw_os=$(echo "$target" | cut -d- -f2)
+            case "$raw_os" in
+              linux) os="linux" ;;
+              macos) os="darwin" ;;
+            esac
+            case "$raw_arch" in
+              x86_64)  arch="amd64" ;;
+              aarch64) arch="arm64" ;;
+            esac
+            zig build -Dtarget="$target" -Doptimize=ReleaseFast
+            mkdir -p dist
+            cp zig-out/bin/dot dist/
+            cp LICENSE README.md dist/
+            tar -czf "dot-${os}-${arch}.tar.gz" -C dist .
+            rm -rf dist
+          done
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dot-*.tar.gz
+          generate_release_notes: true
