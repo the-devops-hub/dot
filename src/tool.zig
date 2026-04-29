@@ -586,7 +586,10 @@ pub const InstallStrategy = union(enum) {
             const extract_dir: []const u8 = if (self.sdk_dir != null) blk: {
                 const opt_parent = try std.fs.path.join(ctx.allocator, &.{ home, paths.local_dir, "opt" });
                 defer ctx.allocator.free(opt_parent);
-                std.Io.Dir.cwd().createDirPath(io_ctx.get(), opt_parent) catch {};
+                std.Io.Dir.cwd().createDirPath(io_ctx.get(), opt_parent) catch |err| switch (err) {
+                    error.PathAlreadyExists => {},
+                    else => return err,
+                };
                 const tmp = try std.fmt.allocPrint(ctx.allocator, "{s}/.tmp-{s}", .{ opt_parent, ctx.tool_id });
                 std.Io.Dir.cwd().deleteTree(io_ctx.get(), tmp) catch {};
                 break :blk tmp;
