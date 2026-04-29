@@ -7,6 +7,7 @@ pub fn extractTarGz(archive_path: []const u8, dest_path: []const u8, strip_compo
     const io = io_ctx.get();
     try std.Io.Dir.cwd().createDirPath(io, dest_path);
     const dest_dir = try std.Io.Dir.cwd().openDir(io, dest_path, .{});
+    defer dest_dir.close(io);
 
     const file = try std.Io.Dir.cwd().openFile(io, archive_path, .{});
     defer file.close(io);
@@ -27,6 +28,7 @@ pub fn extractTarXz(archive_path: []const u8, dest_path: []const u8, strip_compo
     const io = io_ctx.get();
     try std.Io.Dir.cwd().createDirPath(io, dest_path);
     const dest_dir = try std.Io.Dir.cwd().openDir(io, dest_path, .{});
+    defer dest_dir.close(io);
 
     const file = try std.Io.Dir.cwd().openFile(io, archive_path, .{});
     defer file.close(io);
@@ -48,6 +50,7 @@ pub fn extractZip(archive_path: []const u8, dest_path: []const u8) !void {
     const io = io_ctx.get();
     try std.Io.Dir.cwd().createDirPath(io, dest_path);
     const dest_dir = try std.Io.Dir.cwd().openDir(io, dest_path, .{});
+    defer dest_dir.close(io);
 
     const file = try std.Io.Dir.cwd().openFile(io, archive_path, .{});
     defer file.close(io);
