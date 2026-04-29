@@ -30,7 +30,7 @@ pub fn editDistance(a: []const u8, b: []const u8) usize {
     return edit_row[lb];
 }
 
-/// Walk $PATH and return the first directory containing `name` as an accessible file.
+/// Walk $PATH and return the first entry where `name` exists and is executable.
 /// Returned slice is allocated by `allocator` — caller owns it.
 pub fn findInPath(allocator: std.mem.Allocator, name: []const u8) ?[]u8 {
     const path_env = env.getenv("PATH") orelse return null;
@@ -38,7 +38,7 @@ pub fn findInPath(allocator: std.mem.Allocator, name: []const u8) ?[]u8 {
     while (it.next()) |dir| {
         if (dir.len == 0) continue;
         const full = std.fs.path.join(allocator, &.{ dir, name }) catch continue;
-        std.Io.Dir.cwd().access(io_ctx.get(), full, .{}) catch {
+        std.Io.Dir.cwd().access(io_ctx.get(), full, .{ .execute = true }) catch {
             allocator.free(full);
             continue;
         };
