@@ -46,6 +46,8 @@ pub fn extractTarXz(archive_path: []const u8, dest_path: []const u8, strip_compo
 }
 
 /// Extract a .zip archive using the Zig standard library (no system `unzip` required).
+/// Note: std.zip.extract does not apply Unix permissions from the zip's external attributes.
+/// Callers are responsible for setting executable bits on extracted binaries afterwards.
 pub fn extractZip(archive_path: []const u8, dest_path: []const u8) !void {
     const io = io_ctx.get();
     try std.Io.Dir.cwd().createDirPath(io, dest_path);
