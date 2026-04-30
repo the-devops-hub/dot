@@ -340,7 +340,7 @@ pub const InstallStrategy = union(enum) {
             } else if (std.mem.endsWith(u8, archive_path, ".tar.xz")) {
                 try archive.extractTarXz(archive_path, extract_dir, 0, ctx.allocator);
             } else if (std.mem.endsWith(u8, archive_path, ".zip")) {
-                try archive.extractZip(archive_path, extract_dir, ctx.allocator);
+                try archive.extractZip(archive_path, extract_dir);
             }
 
             // Locate the binary in the extracted tree
@@ -403,7 +403,7 @@ pub const InstallStrategy = union(enum) {
 
             const hc_filename = std.fs.path.basename(archive_path);
             output.printStepStart("Extracting", hc_filename);
-            try archive.extractZip(archive_path, extract_dir, ctx.allocator);
+            try archive.extractZip(archive_path, extract_dir);
 
             const src_bin = try std.fs.path.join(ctx.allocator, &.{ extract_dir, self.product });
             defer ctx.allocator.free(src_bin);
@@ -581,7 +581,19 @@ pub const InstallStrategy = union(enum) {
 
             try http.download(ctx.allocator, url, archive_path, ctx.progress);
 
-            const extract_dir = try std.fmt.allocPrint(ctx.allocator, "{s}/extract", .{ctx.tmp_dir});
+            // For sdk_dir installs, extract within ~/.local/opt so the rename is same-filesystem.
+            const home = env.getenv("HOME") orelse paths.fallback_home;
+            const extract_dir: []const u8 = if (self.sdk_dir != null) blk: {
+                const opt_parent = try std.fs.path.join(ctx.allocator, &.{ home, paths.local_dir, "opt" });
+                defer ctx.allocator.free(opt_parent);
+                std.Io.Dir.cwd().createDirPath(io_ctx.get(), opt_parent) catch |err| switch (err) {
+                    error.PathAlreadyExists => {},
+                    else => return err,
+                };
+                const tmp = try std.fmt.allocPrint(ctx.allocator, "{s}/.tmp-{s}", .{ opt_parent, ctx.tool_id });
+                std.Io.Dir.cwd().deleteTree(io_ctx.get(), tmp) catch {};
+                break :blk tmp;
+            } else try std.fmt.allocPrint(ctx.allocator, "{s}/extract", .{ctx.tmp_dir});
             defer ctx.allocator.free(extract_dir);
 
             output.printStepStart("Extracting", filename);
@@ -592,11 +604,10 @@ pub const InstallStrategy = union(enum) {
             } else if (std.mem.endsWith(u8, archive_path, ".tar.xz")) {
                 try archive.extractTarXz(archive_path, extract_dir, self.strip_components, ctx.allocator);
             } else if (std.mem.endsWith(u8, archive_path, ".zip")) {
-                try archive.extractZip(archive_path, extract_dir, ctx.allocator);
+                try archive.extractZip(archive_path, extract_dir);
             }
 
             // Determine the working directory: either a persistent SDK dir or the temp extract dir
-            const home = env.getenv("HOME") orelse paths.fallback_home;
             const effective_dir: []const u8 = if (self.sdk_dir) |sd_tmpl| blk: {
                 // sdk_dir supports template variables (e.g. zig uses version in dir name)
                 const sd = try renderTemplate(ctx.allocator, sd_tmpl, ctx);
@@ -604,19 +615,12 @@ pub const InstallStrategy = union(enum) {
                 // sdk_name is the fixed install dir name; falls back to sdk_dir if simple
                 const install_name = self.sdk_name orelse sd;
                 const sdk_path = try std.fs.path.join(ctx.allocator, &.{ home, paths.local_dir, "opt", install_name });
-                // Remove old installation and move new one into place
+                // Rename the extracted sdk subdir into its final location (same filesystem).
                 std.Io.Dir.cwd().deleteTree(io_ctx.get(), sdk_path) catch {};
                 const src = try std.fmt.allocPrint(ctx.allocator, "{s}/{s}", .{ extract_dir, sd });
                 defer ctx.allocator.free(src);
-                const opt_parent = try std.fs.path.join(ctx.allocator, &.{ home, paths.local_dir, "opt" });
-                defer ctx.allocator.free(opt_parent);
-                std.Io.Dir.cwd().createDirPath(io_ctx.get(), opt_parent) catch {};
-                const mv_res = try std.process.run(ctx.allocator, io_ctx.get(), .{
-                    .argv = &.{ "mv", src, sdk_path },
-                });
-                ctx.allocator.free(mv_res.stdout);
-                ctx.allocator.free(mv_res.stderr);
-                if (mv_res.term != .exited or mv_res.term.exited != 0) return error.MoveFailed;
+                try std.Io.Dir.cwd().rename(src, std.Io.Dir.cwd(), sdk_path, io_ctx.get());
+                std.Io.Dir.cwd().deleteTree(io_ctx.get(), extract_dir) catch {};
                 break :blk sdk_path;
             } else try ctx.allocator.dupe(u8, extract_dir);
             defer ctx.allocator.free(effective_dir);
@@ -625,11 +629,9 @@ pub const InstallStrategy = union(enum) {
                 const script_path = try std.fs.path.join(ctx.allocator, &.{ effective_dir, script });
                 defer ctx.allocator.free(script_path);
 
-                const chmod_res = try std.process.run(ctx.allocator, io_ctx.get(), .{
-                    .argv = &.{ "chmod", "+x", script_path },
-                });
-                ctx.allocator.free(chmod_res.stdout);
-                ctx.allocator.free(chmod_res.stderr);
+                const script_file = try std.Io.Dir.cwd().openFile(io_ctx.get(), script_path, .{});
+                defer script_file.close(io_ctx.get());
+                try script_file.setPermissions(io_ctx.get(), .executable_file);
 
                 var argv: std.ArrayList([]const u8) = .empty;
                 defer argv.deinit(ctx.allocator);
@@ -807,11 +809,9 @@ fn installBinary(ctx: *InstallContext, src_path: []const u8) !void {
 
     try std.Io.Dir.cwd().copyFile(src_path, std.Io.Dir.cwd(), tmp_dest, io, .{});
 
-    const chmod = try std.process.run(ctx.allocator, io_ctx.get(), .{
-        .argv = &.{ "chmod", "+x", tmp_dest },
-    });
-    ctx.allocator.free(chmod.stdout);
-    ctx.allocator.free(chmod.stderr);
+    const tmp_file = try std.Io.Dir.cwd().openFile(io, tmp_dest, .{});
+    defer tmp_file.close(io);
+    try tmp_file.setPermissions(io, .executable_file);
 
     try std.Io.Dir.cwd().rename(tmp_dest, std.Io.Dir.cwd(), dest, io);
 }
@@ -833,8 +833,9 @@ fn verifyChecksum(allocator: std.mem.Allocator, file_path: []const u8, checksum_
     defer file.close(io);
 
     var hasher = std.crypto.hash.sha2.Sha256.init(.{});
+    var reader_buf: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &reader_buf);
     var buf: [65536]u8 = undefined;
-    var file_reader = file.reader(io, &buf);
     while (true) {
         const num_read = try file_reader.interface.readSliceShort(&buf);
         if (num_read == 0) break;

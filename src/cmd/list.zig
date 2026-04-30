@@ -7,6 +7,7 @@ const install_cmd = @import("install.zig");
 const io_ctx = @import("../io_ctx.zig");
 const paths = @import("../paths.zig");
 const env = @import("../env.zig");
+const util = @import("../util.zig");
 
 const help =
     \\Usage: dot list [options]
@@ -242,14 +243,9 @@ fn isUnmanagedLocal(home: []const u8, id: []const u8, allocator: std.mem.Allocat
 
 /// Returns true if the tool binary is found in PATH outside ~/.local/bin.
 fn isSystemInstalled(allocator: std.mem.Allocator, id: []const u8) bool {
-    const result = std.process.run(allocator, io_ctx.get(), .{
-        .argv = &.{ "which", id },
-    }) catch return false;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-    if (result.term != .exited or result.term.exited != 0) return false;
-    const path = std.mem.trim(u8, result.stdout, " \n\r\t");
-    return path.len > 0 and !std.mem.containsAtLeast(u8, path, 1, ".local/bin");
+    const found = util.findInPath(allocator, id) orelse return false;
+    defer allocator.free(found);
+    return !std.mem.containsAtLeast(u8, found, 1, ".local/bin");
 }
 
 fn printListRow(id: []const u8, aliases: []const []const u8, desc: []const u8, version: ?[]const u8, sys: bool, unmanaged: bool, groups: []const u8, desc_width: usize) void {

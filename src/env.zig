@@ -7,6 +7,7 @@ pub fn init(environ: std.process.Environ) void {
     g_environ = environ;
 }
 
+
 /// Scan the process environment for `key`. Returns the value slice or null.
 /// Equivalent to the old std.posix.getenv.
 pub fn getenv(key: []const u8) ?[]const u8 {

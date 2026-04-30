@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const io_ctx = @import("io_ctx.zig");
+const util = @import("util.zig");
 
 pub const OperatingSystem = enum {
     linux,
@@ -170,17 +171,9 @@ pub const PackageManager = enum {
     /// Check if a package manager binary exists in PATH
     pub fn isAvailable(self: PackageManager) bool {
         const cmd = self.command() orelse return false;
-        // Use std.process to check
-        const result = std.process.run(std.heap.page_allocator, io_ctx.get(), .{
-            .argv = &.{ "sh", "-c", std.fmt.allocPrint(
-                std.heap.page_allocator,
-                "command -v {s}",
-                .{cmd},
-            ) catch return false },
-        }) catch return false;
-        std.heap.page_allocator.free(result.stdout);
-        std.heap.page_allocator.free(result.stderr);
-        return result.term == .exited and result.term.exited == 0;
+        const found = util.findInPath(std.heap.page_allocator, cmd) orelse return false;
+        std.heap.page_allocator.free(found);
+        return true;
     }
 
     pub fn command(self: PackageManager) ?[]const u8 {
