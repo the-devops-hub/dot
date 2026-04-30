@@ -253,13 +253,16 @@ fn installTool(
         }
     }
 
+    // Capture installed version before any mutation — used for upgrade display and up-to-date check.
+    const installed_ver: ?[]const u8 = state.getVersion(tool.id);
+
     // Check if already up to date
     if (!force) {
-        if (state.getVersion(tool.id)) |installed_ver| {
-            if (std.mem.eql(u8, installed_ver, version)) {
+        if (installed_ver) |iv| {
+            if (std.mem.eql(u8, iv, version)) {
                 // Still regenerate the shell section in case the integration file was lost.
                 _ = writeShellIntegration(&tool, allocator, false);
-                printAlreadyReady(tool.name, installed_ver, tool.id);
+                printAlreadyReady(tool.name, iv, tool.id);
                 return;
             }
         }
@@ -297,7 +300,10 @@ fn installTool(
         defer std.Io.Dir.cwd().deleteTree(io, tmp_dir) catch {};
 
         var dl_buf: [256]u8 = undefined;
-        const dl_step = std.fmt.bufPrint(&dl_buf, "Downloading {s} {s}", .{ tool.name, version }) catch "Downloading";
+        const dl_step = if (installed_ver) |old|
+            std.fmt.bufPrint(&dl_buf, "Upgrading {s} {s} {s} {s}", .{ tool.name, old, output.sym_arrow, version }) catch "Upgrading"
+        else
+            std.fmt.bufPrint(&dl_buf, "Installing {s} {s}", .{ tool.name, version }) catch "Installing";
         output.printStep(dl_step, output.sym_ok, "");
 
         var bar = progress_mod.ProgressBar{};
@@ -387,16 +393,6 @@ fn installTool(
     try state.addTool(tool.id, version, method, version_arg != null);
 
     if (shell_written) printShellReloadHint(platform.Shell.detect());
-    if (tool.quick_start.len > 0) printQuickStart(tool.quick_start);
-    if (tool.resources.len > 0) {
-        var res_items: std.ArrayList([]const u8) = .empty;
-        defer res_items.deinit(allocator);
-        for (tool.resources) |r| {
-            try res_items.append(allocator, try std.fmt.allocPrint(allocator, "{s}: {s}", .{ r.label, r.url }));
-        }
-        printResources(res_items.items);
-        for (res_items.items) |item| allocator.free(item);
-    }
 }
 
 fn guardedCompletion(sh: platform.Shell, id: []const u8, cmd: []const u8, allocator: std.mem.Allocator) ![]u8 {
@@ -480,20 +476,12 @@ fn checkSystemInstall(allocator: std.mem.Allocator, id: []const u8) ?[]u8 {
     const our_path = std.fs.path.join(allocator, &.{ home, paths.local_dir, paths.bin_dir, id }) catch return null;
     defer allocator.free(our_path);
 
-    const result = std.process.run(allocator, io_ctx.get(), .{
-        .argv = &.{ "which", id },
-        .stdout_limit = .limited(512),
-        .stderr_limit = .limited(512),
-    }) catch return null;
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-
-    if (result.term != .exited or result.term.exited != 0) return null;
-
-    const path = std.mem.trim(u8, result.stdout, " \n\r\t");
-    if (path.len == 0) return null;
-    if (std.mem.eql(u8, path, our_path)) return null;
-    return allocator.dupe(u8, path) catch null;
+    const found = util.findInPath(allocator, id) orelse return null;
+    if (std.mem.eql(u8, found, our_path)) {
+        allocator.free(found);
+        return null;
+    }
+    return found;
 }
 
 pub fn parseGroup(name: []const u8) ?tool_mod.Group {
@@ -523,20 +511,6 @@ fn printAlreadyReady(tool: []const u8, version: []const u8, tool_id: []const u8)
     output.printFmt("To reinstall: dot install {s} --force\n", .{tool_id});
 }
 
-fn printQuickStart(cmds: []const []const u8) void {
-    output.printFmt("{s}{s}{s} {s}Quick Start:{s}\n", .{ output.cyan, output.sym_books, output.reset, output.bold, output.reset });
-    for (cmds) |cmd| {
-        output.printFmt("  $ {s}\n", .{cmd});
-    }
-    output.printFmt("\n", .{});
-}
-
-fn printResources(items: []const []const u8) void {
-    output.printFmt("{s}{s}{s} {s}Resources:{s}\n", .{ output.cyan, output.sym_link, output.reset, output.bold, output.reset });
-    for (items) |item| {
-        output.printFmt("  • {s}\n", .{item});
-    }
-}
 
 fn printShellReloadHint(shell_type: platform.Shell) void {
     const file = shell_type.integrationFileName();

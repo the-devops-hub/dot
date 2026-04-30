@@ -7,6 +7,7 @@ pub fn extractTarGz(archive_path: []const u8, dest_path: []const u8, strip_compo
     const io = io_ctx.get();
     try std.Io.Dir.cwd().createDirPath(io, dest_path);
     const dest_dir = try std.Io.Dir.cwd().openDir(io, dest_path, .{});
+    defer dest_dir.close(io);
 
     const file = try std.Io.Dir.cwd().openFile(io, archive_path, .{});
     defer file.close(io);
@@ -22,30 +23,44 @@ pub fn extractTarGz(archive_path: []const u8, dest_path: []const u8, strip_compo
     });
 }
 
-/// Extract a .tar.xz archive using system `tar`. Preserves permissions and symlinks.
+/// Extract a .tar.xz archive using the Zig standard library (no system `tar` required).
 pub fn extractTarXz(archive_path: []const u8, dest_path: []const u8, strip_components: u32, allocator: std.mem.Allocator) !void {
     const io = io_ctx.get();
     try std.Io.Dir.cwd().createDirPath(io, dest_path);
-    var strip_buf: [16]u8 = undefined;
-    const strip_str = std.fmt.bufPrint(&strip_buf, "{d}", .{strip_components}) catch unreachable;
-    const result = try std.process.run(allocator, io_ctx.get(), .{
-        .argv = &.{ "tar", "-xJf", archive_path, "-C", dest_path, "--strip-components", strip_str },
+    const dest_dir = try std.Io.Dir.cwd().openDir(io, dest_path, .{});
+    defer dest_dir.close(io);
+
+    const file = try std.Io.Dir.cwd().openFile(io, archive_path, .{});
+    defer file.close(io);
+
+    var file_buf: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &file_buf);
+
+    const decomp_buf = try allocator.alloc(u8, 64 * 1024);
+    var decomp = try std.compress.xz.Decompress.init(&file_reader.interface, allocator, decomp_buf);
+    defer decomp.deinit();
+
+    try std.tar.pipeToFileSystem(io, dest_dir, &decomp.reader, .{
+        .strip_components = strip_components,
     });
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-    if (result.term != .exited or result.term.exited != 0) return error.ExtractionFailed;
 }
 
-/// Extract a .zip archive to a destination directory using system `unzip`.
-/// Using the system unzip preserves Unix file permissions stored in the archive.
-pub fn extractZip(archive_path: []const u8, dest_path: []const u8, allocator: std.mem.Allocator) !void {
-    try std.Io.Dir.cwd().createDirPath(io_ctx.get(), dest_path);
-    const result = try std.process.run(allocator, io_ctx.get(), .{
-        .argv = &.{ "unzip", "-o", "-q", archive_path, "-d", dest_path },
-    });
-    defer allocator.free(result.stdout);
-    defer allocator.free(result.stderr);
-    if (result.term != .exited or result.term.exited != 0) return error.ExtractionFailed;
+/// Extract a .zip archive using the Zig standard library (no system `unzip` required).
+/// Note: std.zip.extract does not apply Unix permissions from the zip's external attributes.
+/// Callers are responsible for setting executable bits on extracted binaries afterwards.
+pub fn extractZip(archive_path: []const u8, dest_path: []const u8) !void {
+    const io = io_ctx.get();
+    try std.Io.Dir.cwd().createDirPath(io, dest_path);
+    const dest_dir = try std.Io.Dir.cwd().openDir(io, dest_path, .{});
+    defer dest_dir.close(io);
+
+    const file = try std.Io.Dir.cwd().openFile(io, archive_path, .{});
+    defer file.close(io);
+
+    var file_buf: [4096]u8 = undefined;
+    var file_reader = file.reader(io, &file_buf);
+
+    try std.zip.extract(dest_dir, &file_reader, .{});
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -114,6 +129,55 @@ test "extractTarGz: strip_components=1 strips top-level directory" {
     try std.testing.expectEqualStrings("#!/bin/sh\n", content);
 }
 
+test "extractTarXz: single file, strip_components=0" {
+    const allocator = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    try tmp.dir.writeFile(std.testing.io, .{ .sub_path = "hello.txt", .data = "hello xz\n" });
+    const tmp_path = try tmp.dir.realPathFileAlloc(std.testing.io, ".", allocator);
+    defer allocator.free(tmp_path);
+
+    const archive = try std.fmt.allocPrint(allocator, "{s}/test.tar.xz", .{tmp_path});
+    defer allocator.free(archive);
+
+    if (!runCmd(allocator, &.{ "tar", "-cJf", archive, "-C", tmp_path, "hello.txt" }))
+        return error.SkipZigTest;
+
+    const out = try std.fmt.allocPrint(allocator, "{s}/out", .{tmp_path});
+    defer allocator.free(out);
+    try extractTarXz(archive, out, 0, allocator);
+
+    const content = try tmp.dir.readFileAlloc(std.testing.io, "out/hello.txt", allocator, .limited(4096));
+    defer allocator.free(content);
+    try std.testing.expectEqualStrings("hello xz\n", content);
+}
+
+test "extractTarXz: strip_components=1 strips top-level directory" {
+    const allocator = std.testing.allocator;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    try tmp.dir.createDirPath(std.testing.io, "pkg");
+    try tmp.dir.writeFile(std.testing.io, .{ .sub_path = "pkg/binary", .data = "xz binary\n" });
+    const tmp_path = try tmp.dir.realPathFileAlloc(std.testing.io, ".", allocator);
+    defer allocator.free(tmp_path);
+
+    const archive = try std.fmt.allocPrint(allocator, "{s}/pkg.tar.xz", .{tmp_path});
+    defer allocator.free(archive);
+
+    if (!runCmd(allocator, &.{ "tar", "-cJf", archive, "-C", tmp_path, "pkg" }))
+        return error.SkipZigTest;
+
+    const out = try std.fmt.allocPrint(allocator, "{s}/out", .{tmp_path});
+    defer allocator.free(out);
+    try extractTarXz(archive, out, 1, allocator);
+
+    const content = try tmp.dir.readFileAlloc(std.testing.io, "out/binary", allocator, .limited(4096));
+    defer allocator.free(content);
+    try std.testing.expectEqualStrings("xz binary\n", content);
+}
+
 test "extractZip: single file" {
     const allocator = std.testing.allocator;
     var tmp = std.testing.tmpDir(.{});
@@ -133,7 +197,7 @@ test "extractZip: single file" {
 
     const out = try std.fmt.allocPrint(allocator, "{s}/out", .{tmp_path});
     defer allocator.free(out);
-    try extractZip(archive, out, allocator);
+    try extractZip(archive, out);
 
     const content = try tmp.dir.readFileAlloc(std.testing.io, "out/data.txt", allocator, .limited(4096));
     defer allocator.free(content);

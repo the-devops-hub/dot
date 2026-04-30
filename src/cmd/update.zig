@@ -145,18 +145,16 @@ pub fn run(
     const tmp_dest = try std.fmt.allocPrint(allocator, "{s}" ++ paths.new_file_suffix, .{dest});
     defer allocator.free(tmp_dest);
 
-    // Copy, chmod, atomic rename
+    // Copy, set executable, atomic rename
     std.Io.Dir.cwd().copyFile(src_bin, std.Io.Dir.cwd(), tmp_dest, io, .{}) catch |e| {
         output.printStep("Install", output.sym_fail, @errorName(e));
         output.printError("Could not copy binary");
         return error.CommandFailed;
     };
 
-    const chmod = try std.process.run(allocator, io, .{
-        .argv = &.{ "chmod", "+x", tmp_dest },
-    });
-    allocator.free(chmod.stdout);
-    allocator.free(chmod.stderr);
+    const tmp_file = try std.Io.Dir.cwd().openFile(io, tmp_dest, .{});
+    defer tmp_file.close(io);
+    try tmp_file.setPermissions(io, .executable_file);
 
     std.Io.Dir.cwd().rename(tmp_dest, std.Io.Dir.cwd(), dest, io) catch |e| {
         output.printStep("Install", output.sym_fail, @errorName(e));

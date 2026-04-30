@@ -34,9 +34,6 @@ pub fn initCaps() void {
         sym_fail = "FAIL";
         sym_warn = "WARN";
         sym_warn_w = 4;
-        sym_pin = "[PIN]";
-        sym_books = "[DOC]";
-        sym_link = "[LK]";
         sym_arrow = "->";
         spin_frames = &.{ "|", "/", "-", "\\" };
         spin_frame_w = 1;
@@ -71,12 +68,9 @@ pub var reset: []const u8 = "\x1b[0m";
 pub var sym_ok: []const u8 = "✓";
 pub var sym_fail: []const u8 = "✗";
 pub var sym_warn: []const u8 = "⚠";
-pub var sym_pin: []const u8 = "📌";
-pub var sym_books: []const u8 = "📚";
-pub var sym_link: []const u8 = "🔗";
+pub var sym_pin: []const u8 = "~";
 /// Progress/in-flight indicator: "→" in rich mode, "->" in plain/pipe.
 pub var sym_arrow: []const u8 = "→";
-pub var sym_install: []const u8 = "🔧";
 /// Visual width of sym_ok (1 in rich mode, 2 in plain/pipe for "ok").
 pub var sym_ok_w: usize = 1;
 /// Visual width of sym_warn (1 in rich mode, 4 in plain/pipe for "WARN").

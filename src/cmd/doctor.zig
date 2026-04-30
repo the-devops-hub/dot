@@ -8,6 +8,7 @@ const shell_mod = @import("../shell.zig");
 const install_mod = @import("install.zig");
 const paths = @import("../paths.zig");
 const env = @import("../env.zig");
+const util = @import("../util.zig");
 
 const help =
     \\Usage: dot doctor
@@ -217,20 +218,9 @@ pub fn run(
             continue;
         } else |_| {}
 
-        // Not in ~/.local/bin — try `which` (covers system_package installs)
-        const result = std.process.run(allocator, io_ctx.get(), .{
-            .argv = &.{ "which", tool_id },
-            .stdout_limit = .limited(512),
-            .stderr_limit = .limited(512),
-        }) catch {
-            printCheckFail(tool_id, "not found — run: dot install <tool> --force");
-            fail += 1;
-            continue;
-        };
-        defer allocator.free(result.stdout);
-        defer allocator.free(result.stderr);
-        if (result.term == .exited and result.term.exited == 0) {
-            const found_path = std.mem.trimEnd(u8, result.stdout, "\n");
+        // Not in ~/.local/bin — search PATH (covers system_package installs)
+        if (util.findInPath(allocator, tool_id)) |found_path| {
+            defer allocator.free(found_path);
             printCheckPass(tool_id, found_path);
             pass += 1;
         } else {

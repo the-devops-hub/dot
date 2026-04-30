@@ -414,11 +414,6 @@
             "strategy": {
                 "type": "direct_binary",
                 "url_template": "https://github.com/dbrgn/tealdeer/releases/download/v{version}/tealdeer-linux-{arch_uname}-musl"
-            },
-            "shell_completions": {
-                "bash_cmd": "source <(tldr --generate-completion bash)",
-                "zsh_cmd": "source <(tldr --generate-completion zsh)",
-                "fish_cmd": "tldr --generate-completion fish | source"
             }
         },
         {
