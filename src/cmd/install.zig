@@ -446,10 +446,15 @@ pub fn buildShellSection(t: *const tool_mod.Tool, shell_type: platform.Shell, al
 fn writeShellIntegration(t: *const tool_mod.Tool, allocator: std.mem.Allocator, print_step: bool) bool {
     const shell_type = platform.Shell.detect();
     if (shell_type == .unknown) return false;
-    const section = buildShellSection(t, shell_type, allocator) orelse return false;
-    defer allocator.free(section);
-    shell_mod.ensureSourced(shell_type, allocator) catch {};
-    shell_mod.addSection(shell_type, t.id, section, allocator) catch {};
+    if (buildShellSection(t, shell_type, allocator)) |section| {
+        defer allocator.free(section);
+        shell_mod.ensureSourced(shell_type, allocator) catch {};
+        shell_mod.addSection(shell_type, t.id, section, allocator) catch {};
+    } else {
+        // Tool has no shell content (no completions, no aliases) — remove any
+        // stale section left by a previous version that had content.
+        shell_mod.removeSection(shell_type, t.id, allocator) catch {};
+    }
     if (print_step) output.printStep("Shell", output.sym_ok, shell_type.name());
     return true;
 }
