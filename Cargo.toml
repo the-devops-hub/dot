@@ -1,0 +1,31 @@
+[package]
+name = "dot"
+version = "0.2.0"
+edition = "2021"
+
+[[bin]]
+name = "dot"
+path = "src/main.rs"
+
+[dependencies]
+clap     = { version = "4.5", features = ["derive", "string"] }
+serde    = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ureq     = { version = "3.0", features = ["rustls"] }
+flate2   = "1.0"
+tar      = "0.4"
+zip      = "2.2"
+xz2      = "0.1"
+thiserror = "1.0"
+anyhow   = "1.0"
+dirs     = "5.0"
+indicatif = "0.17"
+console  = "0.15"
+chrono   = { version = "0.4", features = ["serde"] }
+sha2     = "0.10"
+hex      = "0.4"
+
+[dev-dependencies]
+tempfile   = "3.10"
+assert_cmd = "2.0"
+predicates = "3.1"

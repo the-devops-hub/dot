@@ -12,11 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - uses: mlugg/setup-zig@v2
-        with:
-          version: "0.16.0"
-
+      - uses: dtolnay/rust-toolchain@stable
       - name: Run release checks
         run: ./scripts/release-check.sh "${{ github.ref_name }}"
 
@@ -28,33 +24,47 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            targets: "x86_64-linux-musl aarch64-linux-musl"
+            targets: "x86_64-unknown-linux-musl aarch64-unknown-linux-musl"
           - os: macos-latest
-            targets: "aarch64-macos x86_64-macos"
+            targets: "aarch64-apple-darwin x86_64-apple-darwin"
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: mlugg/setup-zig@v2
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/cache@v4
         with:
-          version: "0.16.0"
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cross (Linux)
+        if: runner.os == 'Linux'
+        run: cargo install cross --locked
 
       - name: Build and package all targets
+        shell: bash
         run: |
           for target in ${{ matrix.targets }}; do
-            raw_arch=$(echo "$target" | cut -d- -f1)
-            raw_os=$(echo "$target" | cut -d- -f2)
-            case "$raw_os" in
-              linux) os="linux" ;;
-              macos) os="darwin" ;;
+            if [ "${{ runner.os }}" = "macOS" ]; then
+              rustup target add "$target"
+              cargo build --release --target "$target"
+            else
+              cross build --release --target "$target"
+            fi
+
+            case "$target" in
+              x86_64-unknown-linux-musl)  os="linux";  arch="amd64" ;;
+              aarch64-unknown-linux-musl) os="linux";  arch="arm64" ;;
+              x86_64-apple-darwin)        os="darwin"; arch="amd64" ;;
+              aarch64-apple-darwin)       os="darwin"; arch="arm64" ;;
             esac
-            case "$raw_arch" in
-              x86_64)  arch="amd64" ;;
-              aarch64) arch="arm64" ;;
-            esac
-            zig build -Dtarget="$target" -Doptimize=ReleaseFast
+
             mkdir -p dist
-            cp zig-out/bin/dot dist/
+            cp "target/$target/release/dot" dist/
             cp LICENSE README.md dist/
             tar -czf "dot-${os}-${arch}.tar.gz" -C dist .
             rm -rf dist

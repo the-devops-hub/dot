@@ -23,8 +23,8 @@ jobs:
           filters: |
             code:
               - 'src/**'
-              - 'build.zig'
-              - 'build.zig.zon'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
               - 'scripts/**'
               - '.github/workflows/**'
 
@@ -35,12 +35,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: mlugg/setup-zig@v2
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          version: "0.16.0"
+          components: rustfmt
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Format check
+        run: cargo fmt --check
 
       - name: Run tests
-        run: zig build test --summary all
+        run: cargo test --all
 
       - name: Build
-        run: zig build -Doptimize=ReleaseFast
+        run: cargo build --release

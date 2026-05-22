@@ -666,6 +666,26 @@
             }
         },
         {
+            "id": "checkov",
+            "name": "Checkov",
+            "description": "Static analysis tool that scans Terraform, CloudFormation, Kubernetes, and Helm for security misconfigurations",
+            "groups": [
+                "security"
+            ],
+            "homepage": "https://www.checkov.io",
+            "brew_formula": "checkov",
+            "version_source": {
+                "type": "pypi",
+                "package": "checkov"
+            },
+            "strategy": {
+                "type": "pip_venv",
+                "package": "checkov",
+                "install_dir_rel": "~/.local/opt/checkov",
+                "binary_name": "checkov"
+            }
+        },
+        {
             "id": "zig",
             "name": "Zig",
             "description": "General-purpose programming language and toolchain",
@@ -703,6 +723,48 @@
                 "sdk_dir": "go",
                 "symlinks": ["bin/go", "bin/gofmt"]
             }
+        },
+        {
+            "id": "rust",
+            "name": "Rust",
+            "description": "Systems programming language focused on safety, speed, and concurrency",
+            "groups": [
+                "dev"
+            ],
+            "homepage": "https://www.rust-lang.org",
+            "brew_formula": "rust",
+            "version_source": {
+                "type": "rust_stable"
+            },
+            "strategy": {
+                "type": "script_installer",
+                "url_template": "https://static.rust-lang.org/rustup/dist/{rust_target}/rustup-init",
+                "args": ["--no-modify-path", "-y"],
+                "env_vars": [
+                    "CARGO_HOME={opt_dir}",
+                    "RUSTUP_HOME={opt_dir}/.rustup",
+                    "RUSTUP_INIT_SKIP_PATH_CHECK=yes"
+                ],
+                "symlinks": [
+                    "{opt_dir}/bin/cargo",
+                    "{opt_dir}/bin/rustc",
+                    "{opt_dir}/bin/rustup",
+                    "{opt_dir}/bin/rustfmt",
+                    "{opt_dir}/bin/cargo-fmt",
+                    "{opt_dir}/bin/cargo-clippy",
+                    "{opt_dir}/bin/clippy-driver"
+                ]
+            },
+            "post_install": [
+                "CARGO_HOME=$HOME/.local/opt/rust RUSTUP_HOME=$HOME/.local/opt/rust/.rustup $HOME/.local/opt/rust/bin/rustup component add rustfmt clippy"
+            ],
+            "post_upgrade": [
+                "CARGO_HOME=$HOME/.local/opt/rust RUSTUP_HOME=$HOME/.local/opt/rust/.rustup $HOME/.local/opt/rust/bin/rustup update stable"
+            ],
+            "shell_env": [
+                "CARGO_HOME=$HOME/.local/opt/rust",
+                "RUSTUP_HOME=$HOME/.local/opt/rust/.rustup"
+            ]
         }
     ]
 }
