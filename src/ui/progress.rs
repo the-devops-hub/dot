@@ -158,10 +158,15 @@ mod tests {
         // prefix length must not change between first and last byte
         let total = 45 * 1024 * 1024u64;
         let first = render_line(0, Some(total), 80, false);
-        let mid   = render_line(total / 2, Some(total), 80, false);
-        let last  = render_line(total, Some(total), 80, false);
+        let mid = render_line(total / 2, Some(total), 80, false);
+        let last = render_line(total, Some(total), 80, false);
         // isolate the "NNN / NNN  " prefix (everything before the bar or suffix)
-        let prefix_len = |s: &str| s.find('[').or_else(|| s.find('━')).or_else(|| s.find('░')).unwrap_or(s.len());
+        let prefix_len = |s: &str| {
+            s.find('[')
+                .or_else(|| s.find('━'))
+                .or_else(|| s.find('░'))
+                .unwrap_or(s.len())
+        };
         assert_eq!(prefix_len(&first), prefix_len(&mid), "prefix shifted mid");
         assert_eq!(prefix_len(&first), prefix_len(&last), "prefix shifted last");
     }
@@ -190,13 +195,23 @@ mod tests {
         let mb = 1024 * 1024u64;
         for bytes in [0, mb / 100, mb / 2, mb - 1, mb] {
             let s = fmt_fixed(bytes, mb);
-            assert_eq!(s.len(), 8, "fmt_fixed({bytes}, {mb}) = \"{s}\" (len {})", s.len());
+            assert_eq!(
+                s.len(),
+                8,
+                "fmt_fixed({bytes}, {mb}) = \"{s}\" (len {})",
+                s.len()
+            );
         }
         // KB tier: every value must produce an 8-char string
         let kb = 1024u64;
         for bytes in [0, 512, 999 * kb / 10, kb - 1] {
             let s = fmt_fixed(bytes, kb);
-            assert_eq!(s.len(), 8, "fmt_fixed({bytes}, {kb}) = \"{s}\" (len {})", s.len());
+            assert_eq!(
+                s.len(),
+                8,
+                "fmt_fixed({bytes}, {kb}) = \"{s}\" (len {})",
+                s.len()
+            );
         }
     }
 }

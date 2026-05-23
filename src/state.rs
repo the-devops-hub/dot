@@ -130,7 +130,6 @@ impl State {
             Ok(())
         }
     }
-
 }
 
 #[cfg(test)]

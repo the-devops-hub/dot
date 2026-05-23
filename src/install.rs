@@ -282,7 +282,10 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
         .status()
         .context("spawn python3 -m venv")?;
     if !venv_status.success() {
-        output::print_detail(&format!("python3-venv is required: {}", python3_install_hint()));
+        output::print_detail(&format!(
+            "python3-venv is required: {}",
+            python3_install_hint()
+        ));
         anyhow::bail!(crate::error::DotError::VenvCreationFailed);
     }
 

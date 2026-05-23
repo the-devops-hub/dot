@@ -233,7 +233,6 @@ impl PackageManager {
             PackageManager::Unknown => &[],
         }
     }
-
 }
 
 #[cfg(test)]
