@@ -49,25 +49,11 @@ fn colored() -> bool {
 
 // ─── Symbols ─────────────────────────────────────────────────────────────────
 
-fn sym_ok() -> &'static str {
-    if is_rich() {
-        "✓"
-    } else {
-        "ok"
-    }
-}
 fn sym_fail() -> &'static str {
     if is_rich() {
         "✗"
     } else {
         "FAIL"
-    }
-}
-fn sym_warn() -> &'static str {
-    if is_rich() {
-        "⚠"
-    } else {
-        "WARN"
     }
 }
 fn sym_arrow() -> &'static str {
@@ -77,40 +63,11 @@ fn sym_arrow() -> &'static str {
         "->"
     }
 }
-fn sym_pin() -> &'static str {
-    "~"
-}
-
 // ─── ANSI helpers ─────────────────────────────────────────────────────────────
 
 use console::style;
 
 // ─── Common print functions ───────────────────────────────────────────────────
-
-pub fn print_raw(text: &str) {
-    if is_silent() {
-        return;
-    }
-    eprint!("{text}");
-}
-
-pub fn print_fmt(text: &str) {
-    if is_silent() {
-        return;
-    }
-    eprintln!("{text}");
-}
-
-pub fn print_warning(msg: &str) {
-    if is_silent() {
-        return;
-    }
-    if colored() {
-        eprintln!("  {}  {msg}", style(sym_warn()).yellow().bold());
-    } else {
-        eprintln!("  {}  {msg}", sym_warn());
-    }
-}
 
 pub fn print_error(msg: &str) {
     if is_silent() {
@@ -226,10 +183,6 @@ pub fn print_section_header(title: &str) {
     }
 }
 
-pub fn print_section_header_fmt(title: &str) {
-    print_section_header(title);
-}
-
 pub fn step_arrow() -> &'static str {
     sym_arrow()
 }
@@ -284,7 +237,7 @@ pub fn print_summary(upgraded: usize, uptodate: usize, failed: usize, elapsed_ms
 
 /// Format a Unix timestamp (decimal string) as "YYYY-MM-DD HH:MM:SS".
 pub fn fmt_timestamp(ts_str: &str) -> String {
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{TimeZone, Utc};
     if let Ok(secs) = ts_str.parse::<i64>() {
         if let Some(dt) = Utc.timestamp_opt(secs, 0).single() {
             return dt.format("%Y-%m-%d %H:%M:%S").to_string();
@@ -303,14 +256,6 @@ pub fn pad_to(s: &str, width: usize) -> String {
     let visible = console::measure_text_width(s);
     let pad = width.saturating_sub(visible);
     format!("{}{}", s, " ".repeat(pad))
-}
-
-/// Print a two-column table line.
-pub fn print_table_row(left: &str, left_width: usize, right: &str) {
-    if is_silent() {
-        return;
-    }
-    eprintln!("  {left:<left_width$}  {right}");
 }
 
 #[cfg(test)]

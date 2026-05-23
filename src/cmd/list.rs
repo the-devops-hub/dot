@@ -118,10 +118,11 @@ pub fn run(args: &ListArgs, state: &State, tools: &[Tool]) -> anyhow::Result<()>
         output::print_section_header("Available Tools");
         if colored {
             eprintln!(
-                "\n{} {} {} Description",
+                "\n{} {} {} {}",
                 output::pad_to(&style("Tool").bold().to_string(), 16),
                 output::pad_to(&style("Status").bold().to_string(), 14),
                 output::pad_to(&style("Groups").bold().to_string(), 16),
+                style("Description").bold(),
             );
         } else {
             eprintln!(

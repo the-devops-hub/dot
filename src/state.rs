@@ -131,14 +131,6 @@ impl State {
         }
     }
 
-    pub fn update_version(&mut self, id: &str, version: &str) -> Result<(), DotError> {
-        if let Some(entry) = self.data.tools.get_mut(id) {
-            entry.version = version.to_string();
-            self.save()
-        } else {
-            Ok(())
-        }
-    }
 }
 
 #[cfg(test)]

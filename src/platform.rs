@@ -234,20 +234,6 @@ impl PackageManager {
         }
     }
 
-    pub fn remove_args(self) -> &'static [&'static str] {
-        match self {
-            PackageManager::Pacman => &["sudo", "pacman", "-R"],
-            PackageManager::Apt => &["sudo", "apt-get", "remove", "-y"],
-            PackageManager::Dnf => &["sudo", "dnf", "remove", "-y"],
-            PackageManager::Yum => &["sudo", "yum", "remove", "-y"],
-            PackageManager::Zypper => &["sudo", "zypper", "remove", "-y"],
-            PackageManager::Apk => &["sudo", "apk", "del"],
-            PackageManager::Brew => &["brew", "uninstall"],
-            PackageManager::Flatpak => &["flatpak", "uninstall", "-y"],
-            PackageManager::Snap => &["snap", "remove"],
-            PackageManager::Unknown => &[],
-        }
-    }
 }
 
 #[cfg(test)]

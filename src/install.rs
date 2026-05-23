@@ -93,7 +93,7 @@ fn verify_checksum(file_path: &Path, checksum_url: &str) -> anyhow::Result<()> {
 }
 
 fn download_with_progress(url: &str, dest: &Path) -> anyhow::Result<()> {
-    let progress = DownloadProgress::new(None);
+    let progress = DownloadProgress::new();
     let mut cb = |done, total| progress.update(done, total);
     crate::http::download(url, dest, Some(&mut cb as &mut dyn FnMut(u64, Option<u64>)))
         .with_context(|| format!("download {url}"))?;

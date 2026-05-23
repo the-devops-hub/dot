@@ -68,9 +68,10 @@ pub fn run(args: &SearchArgs, tools: &[Tool]) -> anyhow::Result<()> {
     if colored {
         use console::style;
         eprintln!(
-            "\n{} {} Description",
+            "\n{} {} {}",
             output::pad_to(&style("Tool").bold().to_string(), 18),
             output::pad_to(&style("Groups").bold().to_string(), 10),
+            style("Description").bold(),
         );
     } else {
         eprintln!("\n{:<18} {:<10} Description", "Tool", "Groups");

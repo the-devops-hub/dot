@@ -19,7 +19,6 @@ xz2      = "0.1"
 thiserror = "1.0"
 anyhow   = "1.0"
 dirs     = "5.0"
-indicatif = "0.17"
 console  = "0.15"
 chrono   = { version = "0.4", features = ["serde"] }
 sha2     = "0.10"

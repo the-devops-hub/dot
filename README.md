@@ -39,13 +39,13 @@ dot install --group all     # everything, no regrets
 
 ```sh
 dot list                    # all available tools and their status
-dot list k8s                # filter by group
-dot search prom             # fuzzy search by name or description
+dot list -g k8s             # filter by group
+dot search prom             # search by name, group, or description
 dot info terraform          # version, homepage, install details
 dot outdated                # which installed tools have newer versions
 
 dot install <tool>          # install a tool
-dot install --group <name>  # install a whole group
+dot install -g <group>      # install a whole group
 dot install helm --version 3.14.0   # pin to a specific version
 
 dot upgrade                 # upgrade everything
@@ -61,18 +61,18 @@ dot doctor                  # health check — shell integration, PATH, completi
 
 ## Groups
 
-| Group        | Examples                                          |
-| ------------ | ------------------------------------------------- |
-| `k8s`        | kubectl, helm, k9s, argocd, kubeseal, krr         |
-| `iac`        | terraform, opentofu, terragrunt, tflint           |
-| `cloud`      | aws, gcloud, oci                                  |
-| `containers` | podman, podman-compose                            |
-| `cm`         | ansible, gh, lazygit                              |
-| `security`   | trivy, vault                                      |
-| `utils`      | jq, yq, tldr                                      |
-| `terminal`   | starship, btop                                    |
-| `dev`        | zig, go                                           |
-| `all`        | everything above                                  |
+| Group        | Examples                                                    |
+| ------------ | ----------------------------------------------------------- |
+| `k8s`        | kubectl, helm, k9s, argocd, kubeseal, krr                   |
+| `iac`        | terraform, opentofu, terragrunt, tflint                     |
+| `cloud`      | aws, gcloud, oci                                            |
+| `containers` | podman, podman-compose                                      |
+| `cm`         | ansible, gh, lazygit                                        |
+| `security`   | trivy, vault, checkov                                       |
+| `utils`      | jq, yq, tldr                                               |
+| `terminal`   | starship, btop                                              |
+| `dev`        | rust, go                                                    |
+| `all`        | everything above                                            |
 
 ## Shell integration
 
@@ -82,28 +82,15 @@ completion delegation, so tab-complete works on the alias too.
 
 Supported shells: bash, zsh, fish.
 
-## External repositories
-
-Host your own tools as a JSON file and add them:
-
-```sh
-dot repository add https://example.com/my-tools/repository.json
-dot repository list
-dot repository update
-dot repository remove my-tools
-```
-
-External tools override builtins with the same ID, so you can pin or replace anything.
-
 ## Build from source
 
-Requires [Zig 0.16.x](https://ziglang.org/download/).
+Requires [Rust](https://rustup.rs/) (stable).
 
 ```sh
 git clone https://github.com/the-devops-hub/dot
 cd dot
-zig build -Doptimize=ReleaseFast
-cp zig-out/bin/dot ~/.local/bin/dot
+cargo build --release
+cp target/release/dot ~/.local/bin/dot
 ```
 
 ## License

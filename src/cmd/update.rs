@@ -53,14 +53,15 @@ pub fn run(args: &UpdateArgs, state: &mut State) -> anyhow::Result<()> {
     std::fs::create_dir_all(&tmp_dir)?;
     let archive_path = tmp_dir.join("dot.tar.gz");
 
-    let mut cb = |done, total| {
-        crate::ui::progress::DownloadProgress::new(total).update(done, total);
-    };
-    if let Err(e) = crate::http::download(
+    let progress = crate::ui::progress::DownloadProgress::new();
+    let mut cb = |done, total| progress.update(done, total);
+    let dl = crate::http::download(
         &url,
         &archive_path,
         Some(&mut cb as &mut dyn FnMut(u64, Option<u64>)),
-    ) {
+    );
+    progress.finish();
+    if let Err(e) = dl {
         let _ = std::fs::remove_dir_all(&tmp_dir);
         output::print_error(&format!("download failed: {e}\n  URL: {url}"));
         return Ok(());

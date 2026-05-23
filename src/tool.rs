@@ -9,7 +9,6 @@ pub const METHOD_SYSTEM_PACKAGE: &str = "system_package";
 pub const METHOD_PIP_VENV: &str = "pip_venv";
 pub const METHOD_TARBALL: &str = "tarball";
 pub const METHOD_SCRIPT_INSTALLER: &str = "script_installer";
-pub const METHOD_BREW: &str = "brew";
 
 // ─── Groups ──────────────────────────────────────────────────────────────────
 
@@ -103,7 +102,6 @@ impl VersionSource {
     pub fn resolve(&self) -> Result<String, crate::error::DotError> {
         use crate::error::DotError;
         use crate::http;
-        use crate::template::tag_to_version;
 
         match self {
             VersionSource::Static(p) => Ok(p.version.clone()),

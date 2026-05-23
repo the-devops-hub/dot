@@ -2,7 +2,7 @@ use crate::install::InstallContext;
 use crate::platform::{Arch, OperatingSystem, PackageManager, Shell};
 use crate::shell as shell_mod;
 use crate::state::State;
-use crate::tool::{Group, Tool};
+use crate::tool::Tool;
 use crate::ui::output;
 use crate::util;
 use crate::validate;
@@ -119,7 +119,7 @@ pub fn install_tool(
     } else {
         match tool.version_source.resolve() {
             Ok(v) => v,
-            Err(e) => {
+            Err(_) => {
                 eprintln!("Warning: could not fetch version (VersionFetchFailed), using 'latest'");
                 "latest".to_string()
             }

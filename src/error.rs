@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+#[allow(dead_code)]
 pub enum DotError {
     #[error("HTTP {status} fetching {url}")]
     Http { url: String, status: u16 },
@@ -23,9 +24,11 @@ pub enum DotError {
     #[error("version parse failed")]
     VersionParseFailed,
 
+    #[allow(dead_code)]
     #[error("checksum mismatch — download may be corrupted")]
     ChecksumMismatch,
 
+    #[allow(dead_code)]
     #[error("bad checksum format")]
     BadChecksumFormat,
 

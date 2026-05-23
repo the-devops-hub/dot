@@ -23,9 +23,10 @@ pub fn run(_args: &GroupsArgs, tools: &[Tool]) -> anyhow::Result<()> {
     let colored = output::get_render_mode() == output::RenderMode::Rich;
     if colored {
         eprintln!(
-            "\n{:<16} {:<7} Description",
-            style("Group").bold(),
-            style("Tools").bold()
+            "\n{} {} {}",
+            output::pad_to(&style("Group").bold().to_string(), 16),
+            output::pad_to(&style("Tools").bold().to_string(), 7),
+            style("Description").bold(),
         );
     } else {
         eprintln!("\n{:<16} {:<7} Description", "Group", "Tools");
