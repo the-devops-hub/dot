@@ -1,0 +1,12 @@
+pub mod doctor;
+pub mod groups;
+pub mod info;
+pub mod install;
+pub mod list;
+pub mod outdated;
+pub mod pin;
+pub mod search;
+pub mod uninstall;
+pub mod unpin;
+pub mod update;
+pub mod upgrade;

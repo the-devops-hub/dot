@@ -9,6 +9,7 @@ zig-out/
 *.dylib
 *.dll
 *.exe
+target
 
 # Editor
 .vscode/
