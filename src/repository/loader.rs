@@ -29,7 +29,7 @@ pub fn load_builtin_tools() -> Result<Vec<Tool>, DotError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tool::{Group, InstallStrategy, VersionSource};
+    use crate::tool::Group;
 
     #[test]
     fn parse_empty_tools_array() {
@@ -67,29 +67,5 @@ mod tests {
     fn builtin_repo_parses_all_tools() {
         let tools = parse_repository_json(BUILTIN_REPO_BYTES).unwrap();
         assert_eq!(tools.len(), 33);
-    }
-
-    fn make_tool(id: &str, desc: &str) -> crate::tool::Tool {
-        crate::tool::Tool {
-            id: id.to_string(),
-            name: id.to_string(),
-            description: desc.to_string(),
-            groups: vec![Group::Utils],
-            homepage: String::new(),
-            version_source: VersionSource::Static(crate::tool::StaticSourceParams {
-                version: "1.0.0".to_string(),
-            }),
-            strategy: InstallStrategy::DirectBinary(crate::tool::DirectBinaryStrategy {
-                url_template: "https://example.com".to_string(),
-            }),
-            brew_formula: None,
-            shell_completions: None,
-            aliases: vec![],
-            post_install: vec![],
-            post_upgrade: vec![],
-            quick_start: vec![],
-            resources: vec![],
-            shell_env: vec![],
-        }
     }
 }
