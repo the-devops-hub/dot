@@ -61,18 +61,18 @@ dot doctor                  # health check — shell integration, PATH, completi
 
 ## Groups
 
-| Group        | Examples                                                    |
-| ------------ | ----------------------------------------------------------- |
-| `k8s`        | kubectl, helm, k9s, argocd, kubeseal, krr                   |
-| `iac`        | terraform, opentofu, terragrunt, tflint                     |
-| `cloud`      | aws, gcloud, oci                                            |
-| `containers` | podman, podman-compose                                      |
-| `cm`         | ansible, gh, lazygit                                        |
-| `security`   | trivy, vault, checkov                                       |
-| `utils`      | jq, yq, tldr                                               |
-| `terminal`   | starship, btop                                              |
-| `dev`        | rust, go                                                    |
-| `all`        | everything above                                            |
+| Group        | Examples                                                         |
+| ------------ | ---------------------------------------------------------------- |
+| `k8s`        | kubectl, helm, k9s, argocd, kubelogin, kubens, kubeseal, krr     |
+| `iac`        | terraform, opentofu, terragrunt, tflint, hcledit, terraform-docs |
+| `cloud`      | aws, gcloud, oci                                                 |
+| `containers` | podman, podman-compose                                           |
+| `cm`         | ansible, gh, lazygit                                             |
+| `security`   | trivy, vault, checkov                                            |
+| `utils`      | jq, yq, tldr, btop                                               |
+| `terminal`   | starship                                                         |
+| `dev`        | rust, go, zig                                                    |
+| `all`        | everything above                                                 |
 
 ## Shell integration
 
@@ -95,4 +95,4 @@ cp target/release/dot ~/.local/bin/dot
 
 ## License
 
-MIT
+[MIT](LICENSE)

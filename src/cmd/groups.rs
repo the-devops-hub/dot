@@ -15,6 +15,7 @@ const GROUP_DESCS: &[(Group, &str)] = &[
     (Group::Security, "Security scanning & secrets"),
     (Group::Utils, "General-purpose CLI utilities"),
     (Group::Terminal, "Terminal & shell UX"),
+    (Group::Dev, "Developer toolchain"),
 ];
 
 pub fn run(_args: &GroupsArgs, tools: &[Tool]) -> anyhow::Result<()> {
