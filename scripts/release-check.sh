@@ -10,16 +10,16 @@ fi
 # Strip leading 'v'
 VERSION="${TAG#v}"
 
-# Extract version from src/version.zig
-CODE_VERSION=$(grep 'pub const current' src/version.zig | sed 's/.*"\(.*\)".*/\1/')
+# Extract version from Cargo.toml
+CODE_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
 
 if [[ "$VERSION" != "$CODE_VERSION" ]]; then
-  echo "ERROR: Tag '$TAG' does not match version in src/version.zig ('$CODE_VERSION')"
-  echo "  Update CURRENT in src/version.zig to '$VERSION' before tagging."
+  echo "ERROR: Tag '$TAG' does not match version in Cargo.toml ('$CODE_VERSION')"
+  echo "  Update version in Cargo.toml to '$VERSION' before tagging."
   exit 1
 fi
 
-echo "OK: version $VERSION matches src/version.zig"
+echo "OK: version $VERSION matches Cargo.toml"
 
-# Verify it builds and tests pass
-zig build test --summary all
+# Verify tests pass
+cargo test --all
