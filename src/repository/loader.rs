@@ -14,9 +14,8 @@ pub fn parse_repository_json(bytes: &[u8]) -> Result<Vec<Tool>, DotError> {
     let repo: RepoJson = serde_json::from_slice(bytes)?;
     let mut tools = Vec::new();
     for v in repo.tools {
-        match serde_json::from_value::<Tool>(v) {
-            Ok(t) => tools.push(t),
-            Err(_) => {} // skip malformed entries
+        if let Ok(t) = serde_json::from_value::<Tool>(v) {
+            tools.push(t);
         }
     }
     Ok(tools)

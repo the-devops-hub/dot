@@ -17,9 +17,11 @@ pub fn edit_distance(a: &str, b: &str) -> usize {
     }
 
     let mut row = vec![0usize; lb + 1];
+    #[allow(clippy::needless_range_loop)]
     for j in 0..=lb {
         row[j] = j;
     }
+    #[allow(clippy::needless_range_loop)]
     for i in 0..la {
         let mut diag = row[0];
         row[0] = i + 1;

@@ -64,7 +64,7 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
     // ─── Installed Tools ──────────────────────────────────────────────────────
     output::print_section_header("Installed Tools");
 
-    for (tool_id, _entry) in state.tools() {
+    for tool_id in state.tools().keys() {
         let bin_path = local_bin.join(tool_id);
         if bin_path.exists() {
             print_pass(tool_id, bin_path.to_str().unwrap_or(""), colored);
@@ -84,7 +84,7 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
 
     // ─── Orphaned state entries ────────────────────────────────────────────────
     let mut has_orphan = false;
-    for (tool_id, _) in state.tools() {
+    for tool_id in state.tools().keys() {
         if tool_id == "dot" {
             continue;
         }

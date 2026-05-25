@@ -198,11 +198,7 @@ fn print_id_col(id: &str, aliases: &[String], colored: bool) {
     } else {
         let alias_str = format!("({})", aliases.join(","));
         let visual = id_trunc.len() + 1 + alias_str.len();
-        let pad = if COL_ID + 1 > visual {
-            COL_ID + 1 - visual
-        } else {
-            0
-        };
+        let pad = (COL_ID + 1).saturating_sub(visual);
         if colored {
             eprint!("{id_trunc} {}{}", style(&alias_str).dim(), " ".repeat(pad));
         } else {
@@ -229,11 +225,7 @@ fn print_status_col(
             (2usize, "ok")
         };
         let text_visual = sym_w + 1 + v_trunc.len() + pin_mark.len();
-        let pad = if COL_STATUS > text_visual {
-            COL_STATUS - text_visual
-        } else {
-            0
-        };
+        let pad = COL_STATUS.saturating_sub(text_visual);
         if colored {
             eprint!(
                 "{} {v_trunc}{pin_mark}{} ",
@@ -251,11 +243,7 @@ fn print_status_col(
             (4usize, "WARN")
         };
         let text_visual = sym_w + 1 + "system".len();
-        let pad = if COL_STATUS > text_visual {
-            COL_STATUS - text_visual
-        } else {
-            0
-        };
+        let pad = COL_STATUS.saturating_sub(text_visual);
         if colored {
             eprint!("{} system{} ", style(sym_s).yellow(), " ".repeat(pad));
         } else {
@@ -311,6 +299,21 @@ fn print_footer(count: usize, group_filter: Option<&str>) {
     eprintln!("\n");
 }
 
+pub fn parse_group(name: &str) -> Option<Group> {
+    match name {
+        "k8s" => Some(Group::K8s),
+        "cloud" => Some(Group::Cloud),
+        "iac" => Some(Group::Iac),
+        "containers" => Some(Group::Containers),
+        "utils" => Some(Group::Utils),
+        "terminal" => Some(Group::Terminal),
+        "cm" => Some(Group::Cm),
+        "security" => Some(Group::Security),
+        "dev" => Some(Group::Dev),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -335,20 +338,5 @@ mod tests {
     fn truncate_desc_hard_cuts_when_no_space() {
         // no spaces in "abcdefghij", cuts at char boundary
         assert_eq!(truncate_desc("abcdefghij", 6), "abcde…");
-    }
-}
-
-pub fn parse_group(name: &str) -> Option<Group> {
-    match name {
-        "k8s" => Some(Group::K8s),
-        "cloud" => Some(Group::Cloud),
-        "iac" => Some(Group::Iac),
-        "containers" => Some(Group::Containers),
-        "utils" => Some(Group::Utils),
-        "terminal" => Some(Group::Terminal),
-        "cm" => Some(Group::Cm),
-        "security" => Some(Group::Security),
-        "dev" => Some(Group::Dev),
-        _ => None,
     }
 }

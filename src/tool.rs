@@ -227,7 +227,7 @@ impl VersionSource {
                     .ok_or(DotError::VersionParseFailed)?;
                 let after_quote = &in_section[ver_pos + ver_marker.len()..];
                 let ver_len = after_quote
-                    .find(|c| c == ' ' || c == '"')
+                    .find([' ', '"'])
                     .ok_or(DotError::VersionParseFailed)?;
                 if ver_len == 0 {
                     return Err(DotError::VersionParseFailed);

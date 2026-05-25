@@ -89,14 +89,12 @@ fn unpack_tar<R: std::io::Read>(
                 fs::create_dir_all(&dest)?;
             }
             tar::EntryType::Symlink => {
-                if let Ok(target) = header.link_name() {
-                    if let Some(target) = target {
-                        if let Some(parent) = dest.parent() {
-                            fs::create_dir_all(parent)?;
-                        }
-                        #[cfg(unix)]
-                        std::os::unix::fs::symlink(target, &dest)?;
+                if let Ok(Some(target)) = header.link_name() {
+                    if let Some(parent) = dest.parent() {
+                        fs::create_dir_all(parent)?;
                     }
+                    #[cfg(unix)]
+                    std::os::unix::fs::symlink(target, &dest)?;
                 }
             }
             _ => {
