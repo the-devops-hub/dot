@@ -171,7 +171,7 @@ pub fn run(args: &ListArgs, state: &State, tools: &[Tool]) -> anyhow::Result<()>
             let g_trunc = &groups_str[..groups_str.len().min(COL_GROUPS)];
             eprint!("{g_trunc:<16} ");
 
-            // Description — truncate to fit terminal, break at word boundary
+            // Description - truncate to fit terminal, break at word boundary
             let desc_trunc = truncate_desc(&t.description, desc_width);
             eprintln!("{desc_trunc}");
         }
@@ -310,6 +310,7 @@ pub fn parse_group(name: &str) -> Option<Group> {
         "cm" => Some(Group::Cm),
         "security" => Some(Group::Security),
         "dev" => Some(Group::Dev),
+        "ai" => Some(Group::Ai),
         _ => None,
     }
 }
@@ -330,7 +331,7 @@ mod tests {
 
     #[test]
     fn truncate_desc_breaks_at_word_boundary() {
-        // "hello world foo" — last space before index 10 is at 5
+        // "hello world foo" - last space before index 10 is at 5
         assert_eq!(truncate_desc("hello world foo", 10), "hello…");
     }
 

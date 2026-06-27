@@ -55,7 +55,7 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
     } else {
         print_warn(
             "~/.local/bin in PATH",
-            "not found — tools may not be accessible",
+            "not found - tools may not be accessible",
             colored,
         );
         warn += 1;
@@ -75,7 +75,7 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
         } else {
             print_fail(
                 tool_id,
-                &format!("not found — run: dot install {tool_id} --force"),
+                &format!("not found - run: dot install {tool_id} --force"),
                 colored,
             );
             fail += 1;
@@ -95,7 +95,7 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
             }
             print_warn(
                 tool_id,
-                &format!("not in any repository — run: dot uninstall {tool_id}"),
+                &format!("not in any repository - run: dot uninstall {tool_id}"),
                 colored,
             );
             warn += 1;
@@ -118,6 +118,22 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
         }
         print_pass(check_sh.name(), integ_path.to_str().unwrap_or(""), colored);
         pass += 1;
+    }
+
+    // Regenerate shell sections for all installed tools across all present integration files.
+    let all_shells = [Shell::Bash, Shell::Zsh, Shell::Fish];
+    for check_sh in &all_shells {
+        let Ok(integ_path) = crate::paths::shell_integration_file(*check_sh) else {
+            continue;
+        };
+        if !integ_path.exists() {
+            continue;
+        }
+        for tool in tools {
+            if state.is_installed(&tool.id) {
+                super::install::write_shell_integration_for(tool, *check_sh);
+            }
+        }
     }
 
     // ─── Summary ─────────────────────────────────────────────────────────────

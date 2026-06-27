@@ -40,7 +40,7 @@ pub fn run(args: &UpgradeArgs, state: &mut State, tools: &[Tool]) -> anyhow::Res
             output::print_unknown_tool(target);
             return Ok(());
         }
-        super::install::install_tool(target, None, force, state, tools)?;
+        super::install::install_tool(target, None, force, true, state, tools)?;
         return Ok(());
     }
 
@@ -72,7 +72,7 @@ fn run_batch(candidates: &[&Tool], force: bool, state: &mut State, tools: &[Tool
         // Snapshot version before to detect real upgrade vs already-current
         let before = state.get_version(&t.id).map(|v| v.to_string());
 
-        match super::install::install_tool(&t.id, None, force, state, tools) {
+        match super::install::install_tool(&t.id, None, force, true, state, tools) {
             Ok(_) => {
                 let after = state.get_version(&t.id).map(|v| v.to_string());
                 let changed = match (&before, &after) {

@@ -110,7 +110,7 @@ case "$SHELL_NAME" in
     setup_shell_integration bash "$RC_FILE" "$INTEG_FILE"
     ;;
   *)
-    echo "  Note: shell '$SHELL_NAME' not recognised — skipping RC integration"
+    echo "  Note: shell '$SHELL_NAME' not recognised - skipping RC integration"
     ;;
 esac
 

@@ -96,7 +96,7 @@ pub fn print_unknown_tool(id: &str) {
     eprintln!("Run 'dot list' to see available tools");
 }
 
-// ─── Step lines — brew style ─────────────────────────────────────────────────
+// ─── Step lines - brew style ─────────────────────────────────────────────────
 
 pub fn print_step(step: &str, is_error: bool, detail: &str) {
     if is_silent() {
@@ -200,16 +200,6 @@ pub fn print_already_current(tool_name: &str, version: &str, tool_id: &str) {
         eprintln!("Warning: {tool_name} {version} is already installed and up-to-date.");
     }
     eprintln!("To reinstall: dot install {tool_id} --force");
-}
-
-pub fn print_caveats(lines: &[String]) {
-    if is_silent() || lines.is_empty() {
-        return;
-    }
-    print_section_header("Caveats");
-    for line in lines {
-        eprintln!("  {line}");
-    }
 }
 
 pub fn print_summary(upgraded: usize, uptodate: usize, failed: usize, elapsed_ms: u64) {

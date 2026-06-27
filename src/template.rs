@@ -19,12 +19,18 @@ pub fn render(tmpl: &str, ctx: &TemplateContext<'_>) -> Result<String, DotError>
             rest = &rest[brace..];
             if let Some(close) = rest.find('}') {
                 let key = &rest[1..close];
+                if key == "version_underscored" {
+                    out.push_str(&ctx.version.replace('.', "_"));
+                    rest = &rest[close + 1..];
+                    continue;
+                }
                 let replacement = match key {
                     "version" => ctx.version,
                     "os" => ctx.os.name(),
                     "arch" => ctx.arch.go_name(),
                     "arch_uname" => ctx.arch.uname_name(),
                     "arch_alt" => ctx.arch.alt_name(),
+                    "arch_x64" => ctx.arch.x64_name(),
                     "os_title" => ctx.os.title_name(),
                     "os_zig" => ctx.os.zig_name(),
                     "rust_target" => ctx.arch.rust_target(ctx.os),
@@ -132,6 +138,18 @@ mod tests {
             render("{opt_dir}", &c).unwrap(),
             "/home/user/.local/opt/helm"
         );
+    }
+
+    #[test]
+    fn render_version_underscored() {
+        let c = ctx("24.2.1");
+        assert_eq!(render("{version_underscored}", &c).unwrap(), "24_2_1");
+    }
+
+    #[test]
+    fn render_arch_x64() {
+        let c = ctx("1.0");
+        assert_eq!(render("{arch_x64}", &c).unwrap(), "x64");
     }
 
     #[test]

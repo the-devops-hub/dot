@@ -66,6 +66,9 @@ fn unpack_tar<R: std::io::Read>(
     strip_components: u32,
 ) -> Result<(), DotError> {
     let mut archive = tar::Archive::new(reader);
+    // Collect hard links for a second pass - their targets may appear later in the archive.
+    let mut deferred_hard_links: Vec<(std::path::PathBuf, std::path::PathBuf)> = Vec::new();
+
     for entry in archive
         .entries()
         .map_err(|e| DotError::Archive(e.to_string()))?
@@ -97,6 +100,21 @@ fn unpack_tar<R: std::io::Read>(
                     std::os::unix::fs::symlink(target, &dest)?;
                 }
             }
+            tar::EntryType::Link => {
+                // Hard link: the target path in the header is archive-relative. Resolve it
+                // against dest_dir and defer until all regular files are extracted.
+                if let Ok(Some(raw_target)) = header.link_name() {
+                    let target_stripped: std::path::PathBuf = raw_target
+                        .components()
+                        .skip(strip_components as usize)
+                        .collect();
+                    let abs_target = dest_dir.join(target_stripped);
+                    if let Some(parent) = dest.parent() {
+                        fs::create_dir_all(parent)?;
+                    }
+                    deferred_hard_links.push((abs_target, dest));
+                }
+            }
             _ => {
                 if let Some(parent) = dest.parent() {
                     fs::create_dir_all(parent)?;
@@ -107,6 +125,18 @@ fn unpack_tar<R: std::io::Read>(
             }
         }
     }
+
+    for (src, dst) in deferred_hard_links {
+        fs::hard_link(&src, &dst).map_err(|e| {
+            DotError::Archive(format!(
+                "hard link {} -> {}: {}",
+                src.display(),
+                dst.display(),
+                e
+            ))
+        })?;
+    }
+
     Ok(())
 }
 

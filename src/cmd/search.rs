@@ -16,7 +16,7 @@ pub fn run(args: &SearchArgs, tools: &[Tool]) -> anyhow::Result<()> {
     let query = match &args.query {
         Some(q) => q.as_str(),
         None => {
-            output::print_error("no query specified — usage: dot search <query>");
+            output::print_error("no query specified - usage: dot search <query>");
             return Ok(());
         }
     };

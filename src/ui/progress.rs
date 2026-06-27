@@ -76,7 +76,7 @@ impl Drop for DownloadProgress {
 fn render_line(done: u64, total: Option<u64>, term_width: usize, rich: bool) -> String {
     if let Some(total) = total.filter(|&t| t > 0) {
         let pct = ((done as f64 / total as f64) * 100.0).min(100.0) as u32;
-        // Both columns use the same fixed-width format — bar position never shifts.
+        // Both columns use the same fixed-width format - bar position never shifts.
         let done_str = fmt_fixed(done, total);
         let total_str = fmt_fixed(total, total);
         let prefix = format!("  {} / {}  ", done_str, total_str);
@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn render_line_with_known_total() {
-        // 512 KB of 1 MB — both in MB unit, numeric field is always {:>5.1}.
+        // 512 KB of 1 MB - both in MB unit, numeric field is always {:>5.1}.
         let line = render_line(512 * 1024, Some(1024 * 1024), 80, false);
         assert!(line.contains("  0.5 MB /   1.0 MB"), "got: {line}");
         assert!(line.contains("50%"), "got: {line}");

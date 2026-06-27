@@ -39,11 +39,11 @@ pub fn run(args: &InfoArgs, state: &State, tools: &[Tool]) -> anyhow::Result<()>
         }
     };
 
-    // Header: "Name — Description" (or just "Name" if no description)
+    // Header: "Name - Description" (or just "Name" if no description)
     if t.description.is_empty() {
         output::print_section_header(&t.name);
     } else {
-        output::print_section_header(&format!("{} — {}", t.name, t.description));
+        output::print_section_header(&format!("{} - {}", t.name, t.description));
     }
     eprintln!();
     if !t.homepage.is_empty() {

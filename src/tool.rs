@@ -24,6 +24,7 @@ pub enum Group {
     Cm,
     Security,
     Dev,
+    Ai,
 }
 
 impl Group {
@@ -38,6 +39,7 @@ impl Group {
             Group::Cm => "cm",
             Group::Security => "security",
             Group::Dev => "dev",
+            Group::Ai => "ai",
         }
     }
 }
@@ -504,6 +506,14 @@ pub struct Tool {
     /// Each entry is `KEY=VALUE`; `$HOME` is expanded by the shell at runtime.
     #[serde(default)]
     pub shell_env: Vec<String>,
+    /// Directories to prepend to PATH in the shell integration section.
+    /// `$HOME` is expanded by the shell at runtime.
+    #[serde(default)]
+    pub shell_path_dirs: Vec<String>,
+    /// If true, installation is skipped when no graphical display is available
+    /// (i.e. neither $DISPLAY nor $WAYLAND_DISPLAY is set).
+    #[serde(default)]
+    pub requires_display: bool,
 }
 
 /// Compare two version strings like "0.16.0" > "0.1.1" semantically.
