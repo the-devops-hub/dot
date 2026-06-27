@@ -85,6 +85,15 @@ impl Arch {
         }
     }
 
+    pub fn x64_name(self) -> &'static str {
+        match self {
+            Arch::X86_64 => "x64",
+            Arch::Aarch64 => "arm64",
+            Arch::Arm => "arm",
+            Arch::I386 => "x86",
+        }
+    }
+
     pub fn rust_target(self, os: OperatingSystem) -> &'static str {
         match os {
             OperatingSystem::Linux => match self {

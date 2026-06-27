@@ -25,7 +25,7 @@ pub enum DotError {
     VersionParseFailed,
 
     #[allow(dead_code)]
-    #[error("checksum mismatch — download may be corrupted")]
+    #[error("checksum mismatch - download may be corrupted")]
     ChecksumMismatch,
 
     #[allow(dead_code)]
@@ -41,7 +41,7 @@ pub enum DotError {
     #[error("installer process failed")]
     InstallerFailed,
 
-    #[error("python3 not found — install it to use pip-based tools")]
+    #[error("python3 not found - install it to use pip-based tools")]
     PythonNotFound,
 
     #[error("venv creation failed")]

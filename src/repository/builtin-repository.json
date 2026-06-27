@@ -69,7 +69,7 @@
         {
             "id": "argocd",
             "name": "ArgoCD CLI",
-            "description": "CLI for Argo CD — GitOps continuous delivery for Kubernetes",
+            "description": "CLI for Argo CD \u2014 GitOps continuous delivery for Kubernetes",
             "groups": [
                 "k8s"
             ],
@@ -144,7 +144,9 @@
                 "type": "tarball",
                 "url_template": "https://github.com/robusta-dev/krr/releases/download/v{version}/krr-ubuntu-latest-v{version}.zip",
                 "sdk_dir": "krr",
-                "symlinks": ["krr"]
+                "symlinks": [
+                    "krr"
+                ]
             }
         },
         {
@@ -317,14 +319,11 @@
                 "type": "pip_venv",
                 "package": "ansible",
                 "install_dir_rel": "~/.local/opt/ansible",
-                "binary_name": "ansible",
-                "extra_binaries": [
-                    "ansible-playbook",
-                    "ansible-vault",
-                    "ansible-galaxy",
-                    "ansible-doc"
-                ]
-            }
+                "binary_name": "ansible"
+            },
+            "shell_path_dirs": [
+                "$HOME/.local/opt/ansible/bin"
+            ]
         },
         {
             "id": "terragrunt",
@@ -351,7 +350,7 @@
         {
             "id": "opentofu",
             "name": "OpenTofu",
-            "description": "Open-source fork of Terraform — community-governed drop-in replacement",
+            "description": "Open-source fork of Terraform \u2014 community-governed drop-in replacement",
             "groups": [
                 "iac"
             ],
@@ -468,7 +467,9 @@
             ],
             "homepage": "https://github.com/jesseduffield/lazygit",
             "brew_formula": "lazygit",
-            "aliases": ["lg"],
+            "aliases": [
+                "lg"
+            ],
             "version_source": {
                 "type": "github_release",
                 "repo": "jesseduffield/lazygit"
@@ -478,6 +479,32 @@
                 "url_template": "https://github.com/jesseduffield/lazygit/releases/download/v{version}/lazygit_{version}_{os_title}_{arch_alt}.tar.gz",
                 "binary_in_archive": "lazygit"
             }
+        },
+        {
+            "id": "smartgit",
+            "name": "SmartGit",
+            "description": "Feature-rich Git GUI client with visual diff and merge tool",
+            "groups": [
+                "cm"
+            ],
+            "homepage": "https://www.syntevo.com/smartgit/",
+            "requires_display": true,
+            "version_source": {
+                "type": "static",
+                "version": "26.1.038"
+            },
+            "strategy": {
+                "type": "tarball",
+                "url_template": "https://download.smartgit.dev/smartgit/smartgit-{version_underscored}-linux-{arch}.tar.gz",
+                "strip_components": 0,
+                "sdk_dir": "smartgit"
+            },
+            "post_install": [
+                "ln -sf $HOME/.local/opt/smartgit/bin/smartgit.sh $HOME/.local/bin/smartgit"
+            ],
+            "post_upgrade": [
+                "ln -sf $HOME/.local/opt/smartgit/bin/smartgit.sh $HOME/.local/bin/smartgit"
+            ]
         },
         {
             "id": "btop",
@@ -583,18 +610,16 @@
                 "strip_components": 0,
                 "sdk_dir": "google-cloud-sdk",
                 "install_script": "install.sh",
-                "install_script_args": "--quiet --usage-reporting false --command-completion false --path-update false",
-                "symlinks": [
-                    "bin/gcloud",
-                    "bin/gsutil",
-                    "bin/bq"
-                ]
+                "install_script_args": "--quiet --usage-reporting false --command-completion false --path-update false"
             },
             "shell_completions": {
                 "bash_cmd": "source \"$HOME/.local/opt/google-cloud-sdk/completion.bash.inc\"",
                 "zsh_cmd": "source \"$HOME/.local/opt/google-cloud-sdk/completion.zsh.inc\"",
                 "fish_cmd": null
-            }
+            },
+            "shell_path_dirs": [
+                "$HOME/.local/opt/google-cloud-sdk/bin"
+            ]
         },
         {
             "id": "oci",
@@ -702,7 +727,9 @@
                 "strip_components": 0,
                 "sdk_dir": "zig-{arch_uname}-{os_zig}-{version}",
                 "sdk_name": "zig",
-                "symlinks": ["zig"]
+                "symlinks": [
+                    "zig"
+                ]
             }
         },
         {
@@ -721,8 +748,14 @@
                 "url_template": "https://go.dev/dl/go{version}.{os}-{arch}.tar.gz",
                 "strip_components": 0,
                 "sdk_dir": "go",
-                "symlinks": ["bin/go", "bin/gofmt"]
-            }
+                "symlinks": [
+                    "bin/go",
+                    "bin/gofmt"
+                ]
+            },
+            "shell_path_dirs": [
+                "$HOME/go/bin"
+            ]
         },
         {
             "id": "rust",
@@ -739,20 +772,14 @@
             "strategy": {
                 "type": "script_installer",
                 "url_template": "https://static.rust-lang.org/rustup/dist/{rust_target}/rustup-init",
-                "args": ["--no-modify-path", "-y"],
+                "args": [
+                    "--no-modify-path",
+                    "-y"
+                ],
                 "env_vars": [
                     "CARGO_HOME={opt_dir}",
                     "RUSTUP_HOME={opt_dir}/.rustup",
                     "RUSTUP_INIT_SKIP_PATH_CHECK=yes"
-                ],
-                "symlinks": [
-                    "{opt_dir}/bin/cargo",
-                    "{opt_dir}/bin/rustc",
-                    "{opt_dir}/bin/rustup",
-                    "{opt_dir}/bin/rustfmt",
-                    "{opt_dir}/bin/cargo-fmt",
-                    "{opt_dir}/bin/cargo-clippy",
-                    "{opt_dir}/bin/clippy-driver"
                 ]
             },
             "post_install": [
@@ -764,7 +791,115 @@
             "shell_env": [
                 "CARGO_HOME=$HOME/.local/opt/rust",
                 "RUSTUP_HOME=$HOME/.local/opt/rust/.rustup"
+            ],
+            "shell_path_dirs": [
+                "$HOME/.local/opt/rust/bin"
             ]
+        },
+        {
+            "id": "claude",
+            "name": "Claude Code",
+            "description": "Anthropic's official AI coding assistant for the terminal",
+            "groups": [
+                "ai"
+            ],
+            "homepage": "https://claude.ai/code",
+            "version_source": {
+                "type": "github_release",
+                "repo": "anthropics/claude-code"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/anthropics/claude-code/releases/download/v{version}/claude-{os}-{arch_x64}.tar.gz",
+                "binary_in_archive": "claude"
+            },
+            "post_install": [
+                "mkdir -p $HOME/.local/share/claude/versions",
+                "cp $HOME/.local/bin/claude $HOME/.local/share/claude/versions/{version}",
+                "chmod 755 $HOME/.local/share/claude/versions/{version}",
+                "ln -sf $HOME/.local/share/claude/versions/{version} $HOME/.local/bin/claude"
+            ],
+            "post_upgrade": [
+                "mkdir -p $HOME/.local/share/claude/versions",
+                "cp $HOME/.local/bin/claude $HOME/.local/share/claude/versions/{version}",
+                "chmod 755 $HOME/.local/share/claude/versions/{version}",
+                "ln -sf $HOME/.local/share/claude/versions/{version} $HOME/.local/bin/claude"
+            ]
+        },
+        {
+            "id": "opencode",
+            "name": "OpenCode",
+            "description": "Open-source AI coding agent for the terminal",
+            "groups": [
+                "ai"
+            ],
+            "homepage": "https://opencode.ai",
+            "version_source": {
+                "type": "github_release",
+                "repo": "sst/opencode"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/sst/opencode/releases/download/v{version}/opencode-{os}-{arch_x64}.tar.gz",
+                "binary_in_archive": "opencode"
+            }
+        },
+        {
+            "id": "omp",
+            "name": "Oh My Pi",
+            "description": "AI coding agent with LSP, DAP, and hash-anchored edits",
+            "groups": [
+                "ai"
+            ],
+            "homepage": "https://github.com/can1357/oh-my-pi",
+            "version_source": {
+                "type": "github_release",
+                "repo": "can1357/oh-my-pi"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/can1357/oh-my-pi/releases/download/v{version}/omp-{os}-{arch_x64}"
+            }
+        },
+        {
+            "id": "jtk",
+            "name": "Jira Toolkit",
+            "description": "CLI for Jira - search issues, manage sprints, update fields and more",
+            "groups": [
+                "utils"
+            ],
+            "homepage": "https://github.com/open-cli-collective/atlassian-cli",
+            "version_source": {
+                "type": "github_release",
+                "repo": "open-cli-collective/atlassian-cli",
+                "filter": "jtk-",
+                "strip_prefix": "jtk-v"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/open-cli-collective/atlassian-cli/releases/download/jtk-v{version}/jtk_{version}_{os}_{arch}.tar.gz",
+                "binary_in_archive": "jtk"
+            }
+        },
+        {
+            "id": "cfl",
+            "name": "Confluence CLI",
+            "description": "CLI for Confluence - create and update pages, manage spaces",
+            "groups": [
+                "utils"
+            ],
+            "homepage": "https://github.com/open-cli-collective/atlassian-cli",
+            "version_source": {
+                "type": "github_release",
+                "repo": "open-cli-collective/atlassian-cli",
+                "filter": "cfl-",
+                "strip_prefix": "cfl-v"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/open-cli-collective/atlassian-cli/releases/download/cfl-v{version}/cfl_{version}_{os}_{arch}.tar.gz",
+                "binary_in_archive": "cfl"
+            }
         }
     ]
 }

@@ -12,7 +12,7 @@ pub fn run(args: &UnpinArgs, state: &mut State) -> anyhow::Result<()> {
     let id = match &args.tool {
         Some(t) => t.as_str(),
         None => {
-            output::print_error("no tool specified — usage: dot unpin <tool>");
+            output::print_error("no tool specified - usage: dot unpin <tool>");
             return Ok(());
         }
     };
@@ -29,6 +29,6 @@ pub fn run(args: &UnpinArgs, state: &mut State) -> anyhow::Result<()> {
 
     state.set_pinned(id, false)?;
     state.save()?;
-    eprintln!("  Unpinned {id} — it will be upgraded with 'dot upgrade'");
+    eprintln!("  Unpinned {id} - it will be upgraded with 'dot upgrade'");
     Ok(())
 }

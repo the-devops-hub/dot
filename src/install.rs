@@ -124,7 +124,7 @@ fn symlink_into_bin(src: &Path, bin_dir: &Path) -> anyhow::Result<()> {
     let _ = std::fs::remove_file(&dst);
     #[cfg(unix)]
     {
-        // Ensure the target is executable — zips built without Unix attributes land as 0o644.
+        // Ensure the target is executable - zips built without Unix attributes land as 0o644.
         if src.exists() {
             use std::os::unix::fs::PermissionsExt;
             let _ = std::fs::set_permissions(src, std::fs::Permissions::from_mode(0o755));

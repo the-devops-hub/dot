@@ -1,21 +1,21 @@
-# dot — The DevOps Toolbox
+# dot - The DevOps Toolbox
 
-A single-binary CLI that installs and manages your DevOps tools — helm, kubectl,
-terraform, trivy and more — with shell completions and aliases wired up automatically.
+A single-binary CLI that installs and manages your DevOps tools - helm, kubectl,
+terraform, trivy and more - with shell completions and aliases wired up automatically.
 
 ## Why does this exist?
 
 Great question. You probably shouldn't use this. You have options:
 
-- **[Homebrew](https://brew.sh)** — works great, as long as you enjoy waiting for Ruby to update
+- **[Homebrew](https://brew.sh)** - works great, as long as you enjoy waiting for Ruby to update
   `libiconv` before you can install `kubectl`
-- **[Nix / NixOS](https://nixos.org)** — the correct answer, assuming you have a week to write the
+- **[Nix / NixOS](https://nixos.org)** - the correct answer, assuming you have a week to write the
   derivation and a therapist on retainer
-- **[webi](https://webinstall.dev)** — genuinely good, but then you'd have nothing to complain about at
+- **[webi](https://webinstall.dev)** - genuinely good, but then you'd have nothing to complain about at
   standup
-- **[mise](https://mise.jdx.dev) / [asdf](https://asdf-vm.com)** — excellent if your team already agrees on a version manager,
+- **[mise](https://mise.jdx.dev) / [asdf](https://asdf-vm.com)** - excellent if your team already agrees on a version manager,
   which they don't
-- **manual `curl | tar | mv`** — this is just `dot install` with extra steps
+- **manual `curl | tar | mv`** - this is just `dot install` with extra steps
 
 `dot` exists because sometimes you just want to run one command on a fresh VM,
 get `kubectl`, `helm`, `terraform` and their completions, and go back to
@@ -56,7 +56,7 @@ dot pin <tool>              # hold a tool at its current version
 dot unpin <tool>            # resume automatic upgrades
 
 dot update                  # update dot itself
-dot doctor                  # health check — shell integration, PATH, completions
+dot doctor                  # health check - shell integration, PATH, completions
 ```
 
 ## Groups

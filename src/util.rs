@@ -3,7 +3,7 @@ use std::path::Path;
 const MAX_EDIT_LEN: usize = 64;
 
 /// Levenshtein distance. Inputs longer than 64 chars are truncated.
-/// Single-row DP — O(n) space.
+/// Single-row DP - O(n) space.
 pub fn edit_distance(a: &str, b: &str) -> usize {
     let a = &a.as_bytes()[..a.len().min(MAX_EDIT_LEN)];
     let b = &b.as_bytes()[..b.len().min(MAX_EDIT_LEN)];

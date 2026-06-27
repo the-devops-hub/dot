@@ -33,7 +33,7 @@ pub fn run(args: &InstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::Res
     let version_arg = args.version.as_deref();
 
     if tool_name.is_empty() && group_flag.is_none() {
-        output::print_error("no tool or group specified — usage: dot install <tool|group>");
+        output::print_error("no tool or group specified - usage: dot install <tool|group>");
         return Ok(());
     }
 
@@ -56,7 +56,7 @@ pub fn run(args: &InstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::Res
             output::print_error("invalid tool name");
             return Ok(());
         }
-        install_tool(tool_name, version_arg, force, state, tools)
+        install_tool(tool_name, version_arg, force, false, state, tools)
     }
 }
 
@@ -72,7 +72,7 @@ fn install_group(
         tools.iter().collect()
     } else {
         let group = super::list::parse_group(group_name).ok_or_else(|| {
-            eprintln!("Unknown group '{group_name}'. Valid groups: k8s, cloud, iac, containers, utils, terminal, cm, security, dev");
+            eprintln!("Unknown group '{group_name}'. Valid groups: k8s, cloud, iac, containers, utils, terminal, cm, security, dev, ai");
             anyhow::anyhow!("unknown group")
         })?;
         tools.iter().filter(|t| t.groups.contains(&group)).collect()
@@ -88,17 +88,35 @@ fn install_group(
 
     for (i, t) in group_tools.iter().enumerate() {
         eprintln!("─── [{}/{total}] {} ───", i + 1, t.name);
-        if let Err(e) = install_tool(t.id.as_str(), None, force, state, tools) {
+        if let Err(e) = install_tool(t.id.as_str(), None, force, false, state, tools) {
             eprintln!("  Error installing {}: {e:#}", t.id);
         }
     }
     Ok(())
 }
 
+pub fn run_post_commands(commands: &[String], version: &str) {
+    for cmd in commands {
+        let rendered = cmd.replace("{version}", version);
+        let status = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(&rendered)
+            .status();
+        if let Err(e) = status {
+            eprintln!("  Warning: post-install command failed to start: {e}");
+        } else if let Ok(s) = status {
+            if !s.success() {
+                eprintln!("  Warning: post-install command exited with {s}");
+            }
+        }
+    }
+}
+
 pub fn install_tool(
     id: &str,
     version_arg: Option<&str>,
     force: bool,
+    is_upgrade: bool,
     state: &mut State,
     tools: &[Tool],
 ) -> anyhow::Result<()> {
@@ -112,6 +130,15 @@ pub fn install_tool(
             return Ok(());
         }
     };
+
+    // Require a graphical display for GUI tools
+    if tool.requires_display && !has_display() {
+        output::print_error(&format!(
+            "{} requires a graphical display (X11 or Wayland) — not available in this environment",
+            tool.name
+        ));
+        return Ok(());
+    }
 
     // Resolve version
     let version = if let Some(v) = version_arg {
@@ -130,7 +157,7 @@ pub fn install_tool(
     if !force && version_arg.is_none() && state.is_pinned(&tool.id) {
         let pinned_ver = state.get_version(&tool.id).unwrap_or("pinned");
         eprintln!(
-            "  ~ {} {} is pinned at {pinned_ver} — skipping",
+            "  ~ {} {} is pinned at {pinned_ver} - skipping",
             tool.name, tool.id
         );
         eprintln!("  To upgrade anyway: dot install {} --force", tool.id);
@@ -236,18 +263,33 @@ pub fn install_tool(
     // Shell integration
     write_shell_integration(tool, true);
 
-    // Caveats
-    output::print_caveats(&tool.post_install);
+    // Post-install / post-upgrade hooks
+    let post_cmds = if is_upgrade {
+        &tool.post_upgrade
+    } else {
+        &tool.post_install
+    };
+    if !post_cmds.is_empty() {
+        output::print_step_start("Post", if is_upgrade { "upgrade" } else { "install" });
+        run_post_commands(post_cmds, &version);
+    }
 
     Ok(())
 }
 
-fn write_shell_integration(tool: &Tool, print_step: bool) -> bool {
+pub fn write_shell_integration(tool: &Tool, print_step: bool) -> bool {
     let shell = Shell::detect();
     if shell == Shell::Unknown {
         return false;
     }
+    write_shell_integration_for(tool, shell);
+    if print_step {
+        output::print_step_start("Shell", shell.name());
+    }
+    true
+}
 
+pub fn write_shell_integration_for(tool: &Tool, shell: Shell) {
     let section = build_shell_section(tool, shell);
     if let Some(content) = section {
         let _ = shell_mod::ensure_sourced(shell);
@@ -255,11 +297,6 @@ fn write_shell_integration(tool: &Tool, print_step: bool) -> bool {
     } else {
         let _ = shell_mod::remove_section(shell, &tool.id);
     }
-
-    if print_step {
-        output::print_step_start("Shell", shell.name());
-    }
-    true
 }
 
 fn build_shell_section(tool: &Tool, shell: Shell) -> Option<String> {
@@ -275,6 +312,10 @@ fn build_shell_section(tool: &Tool, shell: Shell) -> Option<String> {
             };
             parts.push(line);
         }
+    }
+
+    for dir in &tool.shell_path_dirs {
+        parts.push(shell.path_add_syntax(dir));
     }
 
     if let Some(ref completions) = tool.shell_completions {
@@ -346,6 +387,10 @@ fn check_system_install(id: &str) -> Option<PathBuf> {
     } else {
         Some(found_path)
     }
+}
+
+fn has_display() -> bool {
+    std::env::var_os("DISPLAY").is_some() || std::env::var_os("WAYLAND_DISPLAY").is_some()
 }
 
 fn find_tool<'a>(id: &str, tools: &'a [Tool]) -> Option<&'a Tool> {
