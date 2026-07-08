@@ -341,7 +341,25 @@ fn build_shell_section(tool: &Tool, shell: Shell) -> Option<String> {
                     .and_then(|c| c.zsh_cmd.as_ref())
                     .is_some() =>
             {
-                Some(format!("compdef {alias_name}={}", tool.id))
+                // compdef only exists after compinit has run
+                Some(format!(
+                    "command -v compdef >/dev/null 2>&1 && compdef {alias_name}={}",
+                    tool.id
+                ))
+            }
+            Shell::Bash
+                if tool
+                    .shell_completions
+                    .as_ref()
+                    .and_then(|c| c.bash_cmd.as_ref())
+                    .is_some() =>
+            {
+                // Re-register the tool's completion spec with the alias appended;
+                // bash does not complete through aliases on its own
+                Some(format!(
+                    "complete -p {id} >/dev/null 2>&1 && eval \"$(complete -p {id}) {alias_name}\"",
+                    id = tool.id
+                ))
             }
             _ => None,
         };
@@ -360,7 +378,11 @@ fn build_shell_section(tool: &Tool, shell: Shell) -> Option<String> {
 fn guarded_completion(shell: Shell, id: &str, cmd: &str) -> String {
     match shell {
         Shell::Fish => format!("if command -q {id}\n    {cmd}\nend"),
-        Shell::Bash | Shell::Zsh => format!("command -v {id} >/dev/null 2>&1 && {cmd}"),
+        Shell::Bash => format!("command -v {id} >/dev/null 2>&1 && {cmd}"),
+        // Completion scripts call compdef, which only exists after compinit
+        Shell::Zsh => format!(
+            "command -v compdef >/dev/null 2>&1 && command -v {id} >/dev/null 2>&1 && {cmd}"
+        ),
         Shell::Unknown => cmd.to_string(),
     }
 }
@@ -447,7 +469,7 @@ mod tests {
         let result = guarded_completion(Shell::Zsh, "kubectl", "source <(kubectl completion zsh)");
         assert_eq!(
             result,
-            "command -v kubectl >/dev/null 2>&1 && source <(kubectl completion zsh)"
+            "command -v compdef >/dev/null 2>&1 && command -v kubectl >/dev/null 2>&1 && source <(kubectl completion zsh)"
         );
     }
 
@@ -456,5 +478,55 @@ mod tests {
         let cmd = "kubectl completion sh";
         let result = guarded_completion(Shell::Unknown, "kubectl", cmd);
         assert_eq!(result, cmd);
+    }
+
+    fn kubectl_tool() -> Tool {
+        serde_json::from_str(
+            r#"{
+                "id": "kubectl",
+                "name": "kubectl",
+                "groups": ["k8s"],
+                "aliases": ["k"],
+                "version_source": {"type": "k8s_stable_txt"},
+                "strategy": {"type": "direct_binary", "url_template": "https://example.com/kubectl"},
+                "shell_completions": {
+                    "bash_cmd": "source <(kubectl completion bash)",
+                    "zsh_cmd": "source <(kubectl completion zsh)",
+                    "fish_cmd": "kubectl completion fish | source"
+                }
+            }"#,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn shell_section_bash_delegates_alias_completion() {
+        let section = build_shell_section(&kubectl_tool(), Shell::Bash).unwrap();
+        assert!(section.contains("alias k=kubectl"));
+        assert!(section
+            .contains("complete -p kubectl >/dev/null 2>&1 && eval \"$(complete -p kubectl) k\""));
+    }
+
+    #[test]
+    fn shell_section_zsh_guards_compdef() {
+        let section = build_shell_section(&kubectl_tool(), Shell::Zsh).unwrap();
+        assert!(section.contains("alias k=kubectl"));
+        assert!(section.contains("command -v compdef >/dev/null 2>&1 && compdef k=kubectl"));
+    }
+
+    #[test]
+    fn shell_section_fish_wraps_alias() {
+        let section = build_shell_section(&kubectl_tool(), Shell::Fish).unwrap();
+        assert!(section.contains("alias k=kubectl"));
+        assert!(section.contains("complete -c k -w kubectl"));
+    }
+
+    #[test]
+    fn shell_section_no_bash_delegation_without_completions() {
+        let mut tool = kubectl_tool();
+        tool.shell_completions = None;
+        let section = build_shell_section(&tool, Shell::Bash).unwrap();
+        assert!(section.contains("alias k=kubectl"));
+        assert!(!section.contains("complete -p"));
     }
 }
