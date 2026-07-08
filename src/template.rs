@@ -31,6 +31,7 @@ pub fn render(tmpl: &str, ctx: &TemplateContext<'_>) -> Result<String, DotError>
                     "arch_uname" => ctx.arch.uname_name(),
                     "arch_alt" => ctx.arch.alt_name(),
                     "arch_x64" => ctx.arch.x64_name(),
+                    "arch_suffix" => ctx.arch.suffix_name(),
                     "os_title" => ctx.os.title_name(),
                     "os_zig" => ctx.os.zig_name(),
                     "rust_target" => ctx.arch.rust_target(ctx.os),
@@ -102,6 +103,15 @@ mod tests {
     fn render_arch_alt() {
         let c = ctx("1.0");
         assert_eq!(render("{arch_alt}", &c).unwrap(), "x86_64");
+    }
+
+    #[test]
+    fn render_arch_suffix() {
+        let c = ctx("1.0");
+        assert_eq!(
+            render("kube-linter-{os}{arch_suffix}.tar.gz", &c).unwrap(),
+            "kube-linter-linux.tar.gz"
+        );
     }
 
     #[test]

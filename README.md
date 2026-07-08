@@ -63,15 +63,16 @@ dot doctor                  # health check - shell integration, PATH, completion
 
 | Group        | Examples                                                         |
 | ------------ | ---------------------------------------------------------------- |
-| `k8s`        | kubectl, helm, k9s, argocd, kubelogin, kubens, kubeseal, krr     |
+| `k8s`        | kubectl, helm, k9s, argocd, kubelogin, kubens, kubeseal, krr, kube-linter |
 | `iac`        | terraform, opentofu, terragrunt, tflint, hcledit, terraform-docs |
 | `cloud`      | aws, gcloud, oci                                                 |
 | `containers` | podman, podman-compose                                           |
 | `cm`         | ansible, gh, lazygit                                             |
-| `security`   | trivy, vault, checkov                                            |
+| `security`   | trivy, vault, checkov, kube-linter                               |
 | `utils`      | jq, yq, tldr, btop                                               |
 | `terminal`   | starship                                                         |
 | `dev`        | rust, go, zig                                                    |
+| `ai`         | claude, opencode, llmfit                                         |
 | `all`        | everything above                                                 |
 
 ## Shell integration

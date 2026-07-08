@@ -187,6 +187,31 @@
             }
         },
         {
+            "id": "kube-linter",
+            "name": "KubeLinter",
+            "description": "Static analysis tool that checks Kubernetes YAML files and Helm charts for misconfigurations",
+            "groups": [
+                "k8s",
+                "security"
+            ],
+            "homepage": "https://docs.kubelinter.io",
+            "brew_formula": "kube-linter",
+            "version_source": {
+                "type": "github_release",
+                "repo": "stackrox/kube-linter"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/stackrox/kube-linter/releases/download/v{version}/kube-linter-{os}{arch_suffix}.tar.gz",
+                "binary_in_archive": "kube-linter"
+            },
+            "shell_completions": {
+                "bash_cmd": "source <(kube-linter completion bash)",
+                "zsh_cmd": "source <(kube-linter completion zsh)",
+                "fish_cmd": "kube-linter completion fish | source"
+            }
+        },
+        {
             "id": "tflint",
             "name": "tflint",
             "description": "A pluggable Terraform linter",
@@ -795,6 +820,26 @@
             "shell_path_dirs": [
                 "$HOME/.local/opt/rust/bin"
             ]
+        },
+        {
+            "id": "llmfit",
+            "name": "llmfit",
+            "description": "Right-size LLM models to your system's hardware \u2014 fit, speed, and quality scoring",
+            "groups": [
+                "ai"
+            ],
+            "homepage": "https://github.com/AlexsJones/llmfit",
+            "brew_formula": "alexsjones/llmfit/llmfit",
+            "version_source": {
+                "type": "github_release",
+                "repo": "AlexsJones/llmfit"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/AlexsJones/llmfit/releases/download/v{version}/llmfit-v{version}-{rust_target}.tar.gz",
+                "binary_in_archive": "llmfit-v{version}-{rust_target}/llmfit",
+                "checksum_url_template": "https://github.com/AlexsJones/llmfit/releases/download/v{version}/llmfit-v{version}-{rust_target}.tar.gz.sha256"
+            }
         },
         {
             "id": "claude",

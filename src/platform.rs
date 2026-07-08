@@ -85,6 +85,17 @@ impl Arch {
         }
     }
 
+    /// Suffix appended to asset names by projects that treat amd64 as the
+    /// unmarked default (e.g. kube-linter-linux.tar.gz vs kube-linter-linux_arm64.tar.gz).
+    pub fn suffix_name(self) -> &'static str {
+        match self {
+            Arch::X86_64 => "",
+            Arch::Aarch64 => "_arm64",
+            Arch::Arm => "_arm",
+            Arch::I386 => "_386",
+        }
+    }
+
     pub fn x64_name(self) -> &'static str {
         match self {
             Arch::X86_64 => "x64",
@@ -268,6 +279,12 @@ mod tests {
         assert_eq!(PackageManager::Pacman.command(), Some("pacman"));
         assert_eq!(PackageManager::Apt.command(), Some("apt"));
         assert_eq!(PackageManager::Unknown.command(), None);
+    }
+
+    #[test]
+    fn arch_suffix_names() {
+        assert_eq!(Arch::X86_64.suffix_name(), "");
+        assert_eq!(Arch::Aarch64.suffix_name(), "_arm64");
     }
 
     #[test]
