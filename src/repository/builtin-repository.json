@@ -344,11 +344,20 @@
                 "type": "pip_venv",
                 "package": "ansible",
                 "install_dir_rel": "~/.local/opt/ansible",
-                "binary_name": "ansible"
-            },
-            "shell_path_dirs": [
-                "$HOME/.local/opt/ansible/bin"
-            ]
+                "binary_name": "ansible",
+                "extra_binaries": [
+                    "ansible-playbook",
+                    "ansible-vault",
+                    "ansible-galaxy",
+                    "ansible-doc",
+                    "ansible-config",
+                    "ansible-console",
+                    "ansible-inventory",
+                    "ansible-pull",
+                    "ansible-test",
+                    "ansible-community"
+                ]
+            }
         },
         {
             "id": "terragrunt",
