@@ -5,6 +5,8 @@ use crate::platform::Shell;
 
 pub const SOURCE_MARKER: &str = "# dot: source shell integration";
 const PATH_MARKER: &str = "# dot: add local bin to PATH";
+const FUNC_BEGIN: &str = "# BEGIN DOT-WRAPPER";
+const FUNC_END: &str = "# END DOT-WRAPPER";
 
 /// Ensure the shell integration file is sourced from the user's RC file. Idempotent.
 pub fn ensure_sourced(shell: Shell) -> Result<(), DotError> {
@@ -42,12 +44,14 @@ pub fn ensure_sourced(shell: Shell) -> Result<(), DotError> {
 
     if rc_content.contains(SOURCE_MARKER) {
         normalize_integration_file(&integration_path)?;
+        ensure_dot_function(shell, &integration_path)?;
         return Ok(());
     }
 
     let source_line = build_source_line(&integration_path);
     append_to_file(&rc_path, &source_line)?;
     ensure_path_in_integration(shell, &integration_path)?;
+    ensure_dot_function(shell, &integration_path)?;
     Ok(())
 }
 
@@ -196,6 +200,46 @@ fn ensure_path_in_integration(shell: Shell, integration_path: &Path) -> Result<(
     let path_line = shell.path_add_syntax(&bin_dir.to_string_lossy());
     let addition = format!("\n{PATH_MARKER}\n{path_line}\n");
     append_to_file(integration_path, &addition)?;
+    Ok(())
+}
+
+/// A subprocess (the `dot` binary) can't reload state in the shell that spawned it.
+/// `uninstall` sometimes needs exactly that (e.g. after removing a prompt tool's
+/// hook), so we wrap `dot` in a shell function that re-execs the shell once the real
+/// binary reports success AND the integration file it just ran against actually
+/// changed. Comparing file contents (rather than trusting the exit code) means a
+/// script calling `dot uninstall` still gets dot's normal exit code untouched.
+fn dot_function_body(shell: Shell, integration_path: &Path) -> Option<String> {
+    let path = integration_path.display();
+    match shell {
+        Shell::Bash | Shell::Zsh => Some(format!(
+            "dot() {{\n  local before after dot_status\n  before=$(cat \"{path}\" 2>/dev/null)\n  command dot \"$@\"\n  dot_status=$?\n  if [ \"$dot_status\" -eq 0 ] && [ \"$1\" = uninstall ]; then\n    after=$(cat \"{path}\" 2>/dev/null)\n    if [ \"$before\" != \"$after\" ]; then\n      echo \"==> Reloading shell to apply changes...\"\n      exec \"$SHELL\" -l\n    fi\n  fi\n  return $dot_status\n}}",
+        )),
+        Shell::Fish => Some(format!(
+            "function dot\n    set -l before (cat \"{path}\" 2>/dev/null)\n    command dot $argv\n    set -l status_code $status\n    if test $status_code -eq 0; and test \"$argv[1]\" = uninstall\n        set -l after (cat \"{path}\" 2>/dev/null)\n        if test \"$before\" != \"$after\"\n            echo \"==> Reloading shell to apply changes...\"\n            exec $SHELL -l\n        end\n    end\n    return $status_code\nend",
+        )),
+        Shell::Unknown => None,
+    }
+}
+
+/// Keeps the wrapper function body in sync with the current `dot` binary's template,
+/// the same way `add_section` keeps a tool's config in sync — a marker alone can't
+/// tell us the body is stale after a `dot` upgrade, only a full replace can.
+fn ensure_dot_function(shell: Shell, integration_path: &Path) -> Result<(), DotError> {
+    let Some(body) = dot_function_body(shell, integration_path) else {
+        return Ok(());
+    };
+
+    let existing = if integration_path.exists() {
+        std::fs::read_to_string(integration_path)?
+    } else {
+        String::new()
+    };
+
+    let new_content = rebuild_with_section(&existing, FUNC_BEGIN, FUNC_END, &body);
+    if new_content != existing {
+        write_file(integration_path, &new_content)?;
+    }
     Ok(())
 }
 

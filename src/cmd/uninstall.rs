@@ -42,6 +42,9 @@ pub fn run(args: &UninstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::R
 
     // Remove shell section
     let shell = Shell::detect();
+    let had_shell_hook = tools
+        .iter()
+        .any(|t| &t.id == id && t.shell_completions.is_some());
     if shell != Shell::Unknown {
         let _ = shell_mod::remove_section(shell, id);
     }
@@ -51,5 +54,8 @@ pub fn run(args: &UninstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::R
     state.save()?;
 
     eprintln!("  Uninstalled {id}");
+    if had_shell_hook {
+        eprintln!("  Note: restart your shell to fully apply this in your current terminal");
+    }
     Ok(())
 }
