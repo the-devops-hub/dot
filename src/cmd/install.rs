@@ -12,8 +12,8 @@ use std::path::PathBuf;
 
 #[derive(Debug, Args)]
 pub struct InstallArgs {
-    /// Tool ID or group name to install
-    pub tool: Option<String>,
+    /// Tool ID(s) or a group name to install
+    pub tools: Vec<String>,
     /// Install all tools in a group
     #[arg(short, long, value_name = "GROUP")]
     pub group: Option<String>,
@@ -26,13 +26,11 @@ pub struct InstallArgs {
 }
 
 pub fn run(args: &InstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::Result<()> {
-    // Determine what to install
-    let tool_name = args.tool.as_deref().unwrap_or("");
     let group_flag = args.group.as_deref();
     let force = args.force;
     let version_arg = args.version.as_deref();
 
-    if tool_name.is_empty() && group_flag.is_none() {
+    if args.tools.is_empty() && group_flag.is_none() {
         output::print_error("no tool or group specified - usage: dot install <tool|group>");
         return Ok(());
     }
@@ -45,19 +43,33 @@ pub fn run(args: &InstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::Res
         }
     }
 
-    let is_group =
-        group_flag.is_some() || tool_name == "all" || super::list::parse_group(tool_name).is_some();
-
-    if is_group {
-        let grp_name = group_flag.unwrap_or(tool_name);
-        install_group(grp_name, force, state, tools)
-    } else {
-        if !validate::is_valid_tool_id(tool_name) {
-            output::print_error("invalid tool name");
-            return Ok(());
-        }
-        install_tool(tool_name, version_arg, force, false, state, tools)
+    // --group always wins, matching the pre-existing precedence
+    if let Some(grp_name) = group_flag {
+        return install_group(grp_name, force, state, tools);
     }
+
+    // A single bare positional that names "all" or a group is still a group install
+    if args.tools.len() == 1 {
+        let tool_name = &args.tools[0];
+        if tool_name == "all" || super::list::parse_group(tool_name).is_some() {
+            return install_group(tool_name, force, state, tools);
+        }
+    }
+
+    let total = args.tools.len();
+    for (i, tool_name) in args.tools.iter().enumerate() {
+        if total > 1 {
+            eprintln!("─── [{}/{total}] {} ───", i + 1, tool_name);
+        }
+        if !validate::is_valid_tool_id(tool_name) {
+            output::print_error(&format!("invalid tool name '{tool_name}'"));
+            continue;
+        }
+        if let Err(e) = install_tool(tool_name, version_arg, force, false, state, tools) {
+            eprintln!("  Error installing {tool_name}: {e:#}");
+        }
+    }
+    Ok(())
 }
 
 fn install_group(

@@ -7,13 +7,29 @@ use clap::Args;
 
 #[derive(Debug, Args)]
 pub struct UninstallArgs {
-    /// Tool ID to uninstall
-    pub tool: String,
+    /// Tool ID(s) to uninstall
+    #[arg(required = true)]
+    pub tools: Vec<String>,
 }
 
 pub fn run(args: &UninstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::Result<()> {
-    let id = &args.tool;
+    let total = args.tools.len();
+    for (i, id) in args.tools.iter().enumerate() {
+        if total > 1 {
+            eprintln!("─── [{}/{total}] {} ───", i + 1, id);
+        }
+        uninstall_one(id, state, tools);
+    }
+    Ok(())
+}
 
+fn uninstall_one(id: &str, state: &mut State, tools: &[Tool]) {
+    if let Err(e) = uninstall_one_inner(id, state, tools) {
+        eprintln!("  Error uninstalling {id}: {e:#}");
+    }
+}
+
+fn uninstall_one_inner(id: &str, state: &mut State, tools: &[Tool]) -> anyhow::Result<()> {
     if !state.is_installed(id) {
         // Check if it's a known tool
         let known = tools.iter().any(|t| &t.id == id);
