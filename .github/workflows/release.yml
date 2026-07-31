@@ -11,7 +11,7 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - name: Run release checks
         run: ./scripts/release-check.sh "${{ github.ref_name }}"
@@ -29,7 +29,7 @@ jobs:
             targets: "aarch64-apple-darwin x86_64-apple-darwin"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -73,7 +73,7 @@ jobs:
           done
 
       - name: Upload release assets
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dot-*.tar.gz
           generate_release_notes: true
