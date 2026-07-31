@@ -146,7 +146,7 @@ pub fn install_tool(
     // Require a graphical display for GUI tools
     if tool.requires_display && !has_display() {
         output::print_error(&format!(
-            "{} requires a graphical display (X11 or Wayland) — not available in this environment",
+            "{} requires a graphical display (X11 or Wayland), not available in this environment",
             tool.name
         ));
         return Ok(());
