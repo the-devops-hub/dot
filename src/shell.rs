@@ -223,7 +223,7 @@ fn dot_function_body(shell: Shell, integration_path: &Path) -> Option<String> {
 }
 
 /// Keeps the wrapper function body in sync with the current `dot` binary's template,
-/// the same way `add_section` keeps a tool's config in sync — a marker alone can't
+/// the same way `add_section` keeps a tool's config in sync: a marker alone can't
 /// tell us the body is stale after a `dot` upgrade, only a full replace can.
 fn ensure_dot_function(shell: Shell, integration_path: &Path) -> Result<(), DotError> {
     let Some(body) = dot_function_body(shell, integration_path) else {
