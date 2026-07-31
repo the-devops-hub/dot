@@ -65,7 +65,7 @@ dot doctor                  # health check - shell integration, PATH, completion
 | ------------ | ---------------------------------------------------------------- |
 | `k8s`        | kubectl, helm, k9s, argocd, kubelogin, kubens, kubeseal, krr, kube-linter |
 | `iac`        | terraform, opentofu, terragrunt, tflint, hcledit, terraform-docs |
-| `cloud`      | aws, gcloud, oci                                                 |
+| `cloud`      | aws, gcloud, oci, az                                             |
 | `containers` | podman, podman-compose                                           |
 | `cm`         | ansible, gh, lazygit                                             |
 | `security`   | trivy, vault, checkov, kube-linter                               |

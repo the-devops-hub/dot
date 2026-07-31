@@ -676,6 +676,26 @@
             }
         },
         {
+            "id": "az",
+            "name": "Azure CLI",
+            "description": "Command line interface for managing Microsoft Azure resources",
+            "groups": [
+                "cloud"
+            ],
+            "homepage": "https://learn.microsoft.com/cli/azure/",
+            "brew_formula": "azure-cli",
+            "version_source": {
+                "type": "pypi",
+                "package": "azure-cli"
+            },
+            "strategy": {
+                "type": "pip_venv",
+                "package": "azure-cli",
+                "install_dir_rel": "~/.local/opt/azure-cli",
+                "binary_name": "az"
+            }
+        },
+        {
             "id": "starship",
             "name": "Starship",
             "description": "The minimal, blazing-fast, and infinitely customizable prompt for any shell",
