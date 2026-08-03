@@ -230,7 +230,7 @@
                 "binary_in_archive": "tflint"
             },
             "shell_completions": {
-                "bash_cmd": "source <(tflint --init 2>/dev/null; tflint completion bash 2>/dev/null)",
+                "bash_cmd": "source <(tflint --init >/dev/null 2>&1; tflint completion bash 2>/dev/null)",
                 "zsh_cmd": null,
                 "fish_cmd": null
             }
