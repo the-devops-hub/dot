@@ -230,7 +230,7 @@
                 "binary_in_archive": "tflint"
             },
             "shell_completions": {
-                "bash_cmd": "source <(tflint --init 2>/dev/null; tflint completion bash 2>/dev/null)",
+                "bash_cmd": "source <(tflint --init >/dev/null 2>&1; tflint completion bash 2>/dev/null)",
                 "zsh_cmd": null,
                 "fish_cmd": null
             }
@@ -673,6 +673,26 @@
                 "package": "oci-cli",
                 "install_dir_rel": "~/.local/opt/oci-cli",
                 "binary_name": "oci"
+            }
+        },
+        {
+            "id": "az",
+            "name": "Azure CLI",
+            "description": "Command line interface for managing Microsoft Azure resources",
+            "groups": [
+                "cloud"
+            ],
+            "homepage": "https://learn.microsoft.com/cli/azure/",
+            "brew_formula": "azure-cli",
+            "version_source": {
+                "type": "pypi",
+                "package": "azure-cli"
+            },
+            "strategy": {
+                "type": "pip_venv",
+                "package": "azure-cli",
+                "install_dir_rel": "~/.local/opt/azure-cli",
+                "binary_name": "az"
             }
         },
         {

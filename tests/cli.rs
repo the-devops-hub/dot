@@ -55,6 +55,18 @@ fn list_group_filter_k8s_excludes_terraform() {
 }
 
 #[test]
+fn list_group_filter_cloud_includes_az() {
+    dot()
+        .args(["list", "-g", "cloud"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("aws"))
+        .stderr(predicate::str::contains("gcloud"))
+        .stderr(predicate::str::contains("oci"))
+        .stderr(predicate::str::is_match(r"(?m)^az\s").unwrap());
+}
+
+#[test]
 fn list_unknown_group_prints_error() {
     dot()
         .args(["list", "-g", "doesnotexist"])
@@ -95,6 +107,15 @@ fn search_helm_returns_helm() {
         .assert()
         .success()
         .stderr(predicate::str::contains("helm"));
+}
+
+#[test]
+fn search_azure_returns_az() {
+    dot()
+        .args(["search", "azure"])
+        .assert()
+        .success()
+        .stderr(predicate::str::is_match(r"(?m)^az\s").unwrap());
 }
 
 #[test]
