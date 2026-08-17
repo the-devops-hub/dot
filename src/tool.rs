@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 // ─── Method name constants (serialized into state.json) ───────────────────────
 
@@ -514,6 +515,29 @@ pub struct Tool {
     /// (i.e. neither $DISPLAY nor $WAYLAND_DISPLAY is set).
     #[serde(default)]
     pub requires_display: bool,
+    /// Alternate install strategies, keyed by name (e.g. "remote"), selectable via
+    /// `dot install <tool> --variant <name>`. Each can be auto-selected on a fresh
+    /// install when its `auto_detect` shell condition is true - see `ToolVariant`.
+    #[serde(default)]
+    pub variants: HashMap<String, ToolVariant>,
+}
+
+/// An alternate install strategy for a `Tool`, selectable by name.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ToolVariant {
+    pub strategy: InstallStrategy,
+    /// Shell condition (`sh -c`, exit 0 = true) - when true on a fresh install with
+    /// no explicit `--variant` flag, this variant is used automatically instead of
+    /// the tool's primary strategy.
+    #[serde(default)]
+    pub auto_detect: Option<String>,
+    /// Broader shell condition - when true but `auto_detect` is false, `hint` is
+    /// printed and the primary strategy is used, instead of installing silently.
+    #[serde(default)]
+    pub context_detect: Option<String>,
+    /// Message printed when `context_detect` is true but `auto_detect` is false.
+    #[serde(default)]
+    pub hint: Option<String>,
 }
 
 /// Compare two version strings like "0.16.0" > "0.1.1" semantically.

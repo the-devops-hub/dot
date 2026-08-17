@@ -564,7 +564,7 @@
         {
             "id": "podman",
             "name": "Podman",
-            "description": "Daemonless container engine for OCI containers",
+            "description": "Daemonless container engine for OCI containers - automatically installs a client-only build in WSL when a Podman Desktop machine is reachable, otherwise the full local engine",
             "groups": [
                 "containers"
             ],
@@ -579,6 +579,18 @@
                 "apt": "podman",
                 "dnf": "podman",
                 "brew": "podman"
+            },
+            "variants": {
+                "remote": {
+                    "strategy": {
+                        "type": "github_release",
+                        "url_template": "https://github.com/containers/podman/releases/download/v{version}/podman-remote-static-{os}_{arch}.tar.gz",
+                        "binary_in_archive": "bin/podman-remote-static-{os}_{arch}"
+                    },
+                    "context_detect": "[ -n \"$WSL_DISTRO_NAME\" ] || grep -qi microsoft /proc/version 2>/dev/null",
+                    "auto_detect": "( [ -n \"$WSL_DISTRO_NAME\" ] || grep -qi microsoft /proc/version 2>/dev/null ) && ls /mnt/wsl/podman-sockets/*/*.sock >/dev/null 2>&1",
+                    "hint": "Running inside WSL but no Podman Desktop machine socket was found under /mnt/wsl/podman-sockets - installing the full local engine via apt instead. If you intended to use Podman Desktop's Windows-managed engine, make sure it's running with WSL integration enabled for this distro, then re-run: dot install podman --variant remote"
+                }
             }
         },
         {

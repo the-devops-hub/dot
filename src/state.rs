@@ -19,6 +19,10 @@ pub struct ToolEntry {
     pub status: String,
     #[serde(default)]
     pub pinned: bool,
+    /// Name of the `Tool::variants` entry used for this install, if any -
+    /// `None` means the tool's primary strategy was used.
+    #[serde(default)]
+    pub variant: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -112,9 +116,26 @@ impl State {
                 source,
                 status: "installed".to_string(),
                 pinned,
+                variant: None,
             },
         );
         self.save()
+    }
+
+    /// Record which `Tool::variants` entry (if any) was used for the last install
+    /// of `id`, so subsequent `dot upgrade`/`dot install` calls stay on the same
+    /// variant instead of silently switching strategies.
+    pub fn set_variant(&mut self, id: &str, variant: Option<&str>) -> Result<(), DotError> {
+        if let Some(entry) = self.data.tools.get_mut(id) {
+            entry.variant = variant.map(|v| v.to_string());
+            self.save()
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn get_variant(&self, id: &str) -> Option<&str> {
+        self.data.tools.get(id)?.variant.as_deref()
     }
 
     pub fn remove_tool(&mut self, id: &str) -> Result<(), DotError> {
