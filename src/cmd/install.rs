@@ -23,6 +23,10 @@ pub struct InstallArgs {
     /// Force reinstall even if already installed / up to date
     #[arg(long)]
     pub force: bool,
+    /// Install a named alternate strategy (see `dot info <tool>`), or "default" to
+    /// force the primary strategy even if a variant would normally be auto-detected
+    #[arg(long, value_name = "NAME")]
+    pub variant: Option<String>,
 }
 
 pub fn run(args: &InstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::Result<()> {
@@ -56,6 +60,7 @@ pub fn run(args: &InstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::Res
         }
     }
 
+    let variant_arg = args.variant.as_deref();
     let total = args.tools.len();
     for (i, tool_name) in args.tools.iter().enumerate() {
         if total > 1 {
@@ -65,7 +70,15 @@ pub fn run(args: &InstallArgs, state: &mut State, tools: &[Tool]) -> anyhow::Res
             output::print_error(&format!("invalid tool name '{tool_name}'"));
             continue;
         }
-        if let Err(e) = install_tool(tool_name, version_arg, force, false, state, tools) {
+        if let Err(e) = install_tool(
+            tool_name,
+            version_arg,
+            force,
+            false,
+            variant_arg,
+            state,
+            tools,
+        ) {
             eprintln!("  Error installing {tool_name}: {e:#}");
         }
     }
@@ -100,7 +113,7 @@ fn install_group(
 
     for (i, t) in group_tools.iter().enumerate() {
         eprintln!("─── [{}/{total}] {} ───", i + 1, t.name);
-        if let Err(e) = install_tool(t.id.as_str(), None, force, false, state, tools) {
+        if let Err(e) = install_tool(t.id.as_str(), None, force, false, None, state, tools) {
             eprintln!("  Error installing {}: {e:#}", t.id);
         }
     }
@@ -129,6 +142,7 @@ pub fn install_tool(
     version_arg: Option<&str>,
     force: bool,
     is_upgrade: bool,
+    variant_arg: Option<&str>,
     state: &mut State,
     tools: &[Tool],
 ) -> anyhow::Result<()> {
@@ -152,17 +166,39 @@ pub fn install_tool(
         return Ok(());
     }
 
+    let (chosen_variant, strategy) = select_variant(tool, variant_arg, state);
+
+    // For system_package tools, prefer the package manager's own candidate version
+    // over the upstream GitHub tag - the two are unrelated version schemes, and the
+    // GitHub tag is often well ahead of what the distro repo can actually install.
+    let is_sys_pkg = matches!(strategy, crate::tool::InstallStrategy::SystemPackage(_));
+    let sys_pkg_name: Option<(PackageManager, String)> = if is_sys_pkg {
+        if let crate::tool::InstallStrategy::SystemPackage(s) = strategy {
+            let pm = PackageManager::detect();
+            s.package_for(pm).map(|p| (pm, p.to_string()))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let resolve_upstream_version = || match tool.version_source.resolve() {
+        Ok(v) => v,
+        Err(_) => {
+            eprintln!("Warning: could not fetch version (VersionFetchFailed), using 'latest'");
+            "latest".to_string()
+        }
+    };
+
     // Resolve version
     let version = if let Some(v) = version_arg {
         v.to_string()
+    } else if let Some((pm, pkg)) = &sys_pkg_name {
+        pm.candidate_version(pkg)
+            .unwrap_or_else(resolve_upstream_version)
     } else {
-        match tool.version_source.resolve() {
-            Ok(v) => v,
-            Err(_) => {
-                eprintln!("Warning: could not fetch version (VersionFetchFailed), using 'latest'");
-                "latest".to_string()
-            }
-        }
+        resolve_upstream_version()
     };
 
     // Skip pinned unless forced
@@ -176,21 +212,36 @@ pub fn install_tool(
         return Ok(());
     }
 
-    // Check for system install conflict (skip for system_package strategy)
-    let is_sys_pkg = matches!(
-        tool.strategy,
-        crate::tool::InstallStrategy::SystemPackage(_)
-    );
-    if !force && !state.is_installed(&tool.id) && !is_sys_pkg {
+    // Check for system install conflict. For system_package tools, only warn if
+    // the package manager doesn't already own this package - if it does, whatever
+    // is on PATH is presumably that very package (dot just hasn't adopted it into
+    // its own state yet), not a real shadow conflict.
+    let already_pkg_installed = sys_pkg_name
+        .as_ref()
+        .map(|(pm, pkg)| pm.installed_version(pkg).is_some())
+        .unwrap_or(false);
+    if !force && !state.is_installed(&tool.id) && !already_pkg_installed {
         if let Some(sys_path) = check_system_install(&tool.id) {
-            eprintln!(
-                "  {} {} is already available at {}",
-                tool.name,
-                version,
-                sys_path.display()
-            );
-            eprintln!("  Use --force to install via dot anyway.");
-            return Ok(());
+            if is_sys_pkg {
+                eprintln!(
+                    "  Warning: {} on PATH currently resolves to {}, not a system package location.",
+                    tool.id,
+                    sys_path.display()
+                );
+                eprintln!(
+                    "  Installing {} via apt will not change what '{}' runs - that other binary will keep shadowing it.",
+                    tool.name, tool.id
+                );
+            } else {
+                eprintln!(
+                    "  {} {} is already available at {}",
+                    tool.name,
+                    version,
+                    sys_path.display()
+                );
+                eprintln!("  Use --force to install via dot anyway.");
+                return Ok(());
+            }
         }
     }
 
@@ -252,7 +303,7 @@ pub fn install_tool(
             tmp_dir: tmp_dir.clone(),
         };
 
-        let install_result = tool.strategy.execute(&ctx);
+        let install_result = strategy.execute(&ctx);
         let _ = std::fs::remove_dir_all(&tmp_dir);
 
         if let Err(e) = install_result {
@@ -260,16 +311,21 @@ pub fn install_tool(
             return Err(anyhow::anyhow!("Installation failed"));
         }
 
-        eprintln!("  {}", bin_dir.join(&tool.id).display());
+        if !is_sys_pkg {
+            eprintln!("  {}", bin_dir.join(&tool.id).display());
+        }
     }
 
-    // Update state
-    let method = if used_brew {
-        "brew"
-    } else {
-        tool.strategy.method_name()
+    // Update state - for system_package tools, record what the package manager
+    // actually installed rather than the (possibly unrelated) candidate/GitHub
+    // version, falling back to `version` only if that query fails.
+    let recorded_version = match &sys_pkg_name {
+        Some((pm, pkg)) => pm.installed_version(pkg).unwrap_or_else(|| version.clone()),
+        None => version.clone(),
     };
-    state.add_tool(&tool.id, &version, method, false)?;
+    let method = if used_brew { "brew" } else { strategy.method_name() };
+    state.add_tool(&tool.id, &recorded_version, method, false)?;
+    state.set_variant(&tool.id, chosen_variant.as_deref())?;
     state.save()?;
 
     // Shell integration
@@ -411,20 +467,89 @@ fn brew_install(formula: &str, force: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Checks for a pre-existing binary that `dot` doesn't yet know about. The only
+/// caller gates this on `!state.is_installed(id)`, so a match here - even at the
+/// path `dot` would itself install to - can never be `dot`'s own prior install; it
+/// must be something else (a manual install, another tool's installer, etc.).
 fn check_system_install(id: &str) -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
-    let our_path = home.join(".local/bin").join(id);
     let found = util::find_in_path(id)?;
-    let found_path = std::path::PathBuf::from(&found);
-    if found_path == our_path {
-        None
-    } else {
-        Some(found_path)
-    }
+    Some(std::path::PathBuf::from(&found))
 }
 
 fn has_display() -> bool {
     std::env::var_os("DISPLAY").is_some() || std::env::var_os("WAYLAND_DISPLAY").is_some()
+}
+
+/// Picks which install strategy applies for this run: an explicit `--variant` flag
+/// wins outright; otherwise an already-tracked tool stays on whatever variant it
+/// last used (so upgrades never silently switch strategies); otherwise, on a fresh
+/// install, each variant's `auto_detect` condition gets a chance to opt in, falling
+/// back to the tool's primary strategy (optionally printing a variant's `hint` first
+/// if its broader `context_detect` condition matched but `auto_detect` didn't).
+fn select_variant<'a>(
+    tool: &'a Tool,
+    variant_arg: Option<&str>,
+    state: &State,
+) -> (Option<String>, &'a crate::tool::InstallStrategy) {
+    if let Some(name) = variant_arg {
+        if name == "default" || name == "primary" {
+            return (None, &tool.strategy);
+        }
+        if let Some(v) = tool.variants.get(name) {
+            return (Some(name.to_string()), &v.strategy);
+        }
+        let known: Vec<&str> = tool.variants.keys().map(|s| s.as_str()).collect();
+        eprintln!(
+            "  Warning: {} has no variant '{name}' - using the primary strategy. Known variants: {}",
+            tool.id,
+            if known.is_empty() {
+                "(none)".to_string()
+            } else {
+                known.join(", ")
+            }
+        );
+        return (None, &tool.strategy);
+    }
+
+    if state.is_installed(&tool.id) {
+        if let Some(name) = state.get_variant(&tool.id) {
+            if let Some(v) = tool.variants.get(name) {
+                return (Some(name.to_string()), &v.strategy);
+            }
+        }
+        return (None, &tool.strategy);
+    }
+
+    for (name, v) in &tool.variants {
+        if let Some(cond) = &v.auto_detect {
+            if shell_condition_true(cond) {
+                eprintln!(
+                    "  Detected a matching environment for '{name}' - installing that variant of {} instead of the default.",
+                    tool.name
+                );
+                return (Some(name.clone()), &v.strategy);
+            }
+        }
+    }
+    for v in tool.variants.values() {
+        if let Some(cond) = &v.context_detect {
+            if shell_condition_true(cond) {
+                if let Some(hint) = &v.hint {
+                    eprintln!("  {hint}");
+                }
+                break;
+            }
+        }
+    }
+    (None, &tool.strategy)
+}
+
+fn shell_condition_true(cmd: &str) -> bool {
+    std::process::Command::new("sh")
+        .args(["-c", cmd])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 fn find_tool<'a>(id: &str, tools: &'a [Tool]) -> Option<&'a Tool> {

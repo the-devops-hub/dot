@@ -253,6 +253,135 @@ impl PackageManager {
             PackageManager::Unknown => &[],
         }
     }
+
+    /// The version of `pkg` currently installed via this package manager, if any.
+    /// Returns `None` on any failure (command missing, package not installed, output
+    /// we can't parse) rather than erroring - callers should fall back gracefully.
+    pub fn installed_version(self, pkg: &str) -> Option<String> {
+        use std::process::Command;
+        match self {
+            PackageManager::Apt => {
+                let out = Command::new("dpkg-query")
+                    .args(["-W", "-f=${Version}", pkg])
+                    .output()
+                    .ok()?;
+                if !out.status.success() {
+                    return None;
+                }
+                let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if s.is_empty() { None } else { Some(s) }
+            }
+            PackageManager::Dnf | PackageManager::Yum | PackageManager::Zypper => {
+                let out = Command::new("rpm")
+                    .args(["-q", "--qf", "%{VERSION}-%{RELEASE}", pkg])
+                    .output()
+                    .ok()?;
+                if !out.status.success() {
+                    return None;
+                }
+                let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if s.is_empty() { None } else { Some(s) }
+            }
+            PackageManager::Pacman => {
+                let out = Command::new("pacman").args(["-Q", pkg]).output().ok()?;
+                if !out.status.success() {
+                    return None;
+                }
+                let s = String::from_utf8_lossy(&out.stdout);
+                s.split_whitespace().nth(1).map(|v| v.to_string())
+            }
+            PackageManager::Apk => {
+                let out = Command::new("apk")
+                    .args(["list", "--installed", pkg])
+                    .output()
+                    .ok()?;
+                if !out.status.success() {
+                    return None;
+                }
+                let s = String::from_utf8_lossy(&out.stdout);
+                let first_field = s.lines().next()?.split_whitespace().next()?;
+                first_field
+                    .strip_prefix(&format!("{pkg}-"))
+                    .map(|v| v.to_string())
+            }
+            _ => None,
+        }
+    }
+
+    /// The version this package manager would install/upgrade to right now, if any.
+    /// Returns `None` on any failure - callers should fall back gracefully.
+    pub fn candidate_version(self, pkg: &str) -> Option<String> {
+        use std::process::Command;
+        match self {
+            PackageManager::Apt => {
+                let out = Command::new("apt-cache").args(["policy", pkg]).output().ok()?;
+                if !out.status.success() {
+                    return None;
+                }
+                let s = String::from_utf8_lossy(&out.stdout);
+                for line in s.lines() {
+                    if let Some(v) = line.trim().strip_prefix("Candidate:") {
+                        let v = v.trim();
+                        return if v.is_empty() || v == "(none)" {
+                            None
+                        } else {
+                            Some(v.to_string())
+                        };
+                    }
+                }
+                None
+            }
+            PackageManager::Dnf | PackageManager::Yum => {
+                let cmd = self.command()?;
+                let out = Command::new(cmd)
+                    .args(["-q", "list", "--available", pkg])
+                    .output()
+                    .ok()?;
+                if !out.status.success() {
+                    return None;
+                }
+                let s = String::from_utf8_lossy(&out.stdout);
+                let line = s.lines().rev().find(|l| l.contains(pkg))?;
+                line.split_whitespace().nth(1).map(|v| v.to_string())
+            }
+            PackageManager::Zypper => {
+                let out = Command::new("zypper")
+                    .args(["--non-interactive", "info", pkg])
+                    .output()
+                    .ok()?;
+                if !out.status.success() {
+                    return None;
+                }
+                let s = String::from_utf8_lossy(&out.stdout);
+                for line in s.lines() {
+                    if let Some(v) = line.trim().strip_prefix("Version") {
+                        let v = v.trim_start_matches(':').trim();
+                        if !v.is_empty() {
+                            return Some(v.to_string());
+                        }
+                    }
+                }
+                None
+            }
+            PackageManager::Pacman => {
+                let out = Command::new("pacman").args(["-Si", pkg]).output().ok()?;
+                if !out.status.success() {
+                    return None;
+                }
+                let s = String::from_utf8_lossy(&out.stdout);
+                for line in s.lines() {
+                    if let Some(v) = line.trim().strip_prefix("Version") {
+                        let v = v.trim_start_matches(':').trim();
+                        if !v.is_empty() {
+                            return Some(v.to_string());
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]

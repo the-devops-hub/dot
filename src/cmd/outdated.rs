@@ -1,8 +1,30 @@
+use crate::platform::PackageManager;
 use crate::state::State;
-use crate::tool::Tool;
+use crate::tool::{InstallStrategy, Tool};
 use crate::ui::output;
 use clap::Args;
 use console::style;
+
+/// For system_package tools, compare against the package manager's own candidate
+/// version instead of the upstream GitHub tag - the two are unrelated version
+/// schemes, and the tag is often well ahead of what the distro repo can install.
+/// Uses whichever variant (see `Tool::variants`) the tool was actually installed
+/// under, so this matches what `dot upgrade` would actually do.
+fn resolve_latest(tool: &Tool, state: &State) -> Option<String> {
+    let strategy = match state.get_variant(&tool.id).and_then(|n| tool.variants.get(n)) {
+        Some(v) => &v.strategy,
+        None => &tool.strategy,
+    };
+    if let InstallStrategy::SystemPackage(s) = strategy {
+        let pm = PackageManager::detect();
+        if let Some(pkg) = s.package_for(pm) {
+            if let Some(v) = pm.candidate_version(pkg) {
+                return Some(v);
+            }
+        }
+    }
+    tool.version_source.resolve().ok()
+}
 
 #[derive(Debug, Args)]
 pub struct OutdatedArgs {}
@@ -25,9 +47,9 @@ pub fn run(_args: &OutdatedArgs, state: &State, tools: &[Tool]) -> anyhow::Resul
         };
         checked += 1;
 
-        let latest = match t.version_source.resolve() {
-            Ok(v) => v,
-            Err(_) => continue,
+        let latest = match resolve_latest(t, state) {
+            Some(v) => v,
+            None => continue,
         };
 
         if latest == entry.version {
