@@ -11,7 +11,10 @@ use console::style;
 /// Uses whichever variant (see `Tool::variants`) the tool was actually installed
 /// under, so this matches what `dot upgrade` would actually do.
 fn resolve_latest(tool: &Tool, state: &State) -> Option<String> {
-    let strategy = match state.get_variant(&tool.id).and_then(|n| tool.variants.get(n)) {
+    let strategy = match state
+        .get_variant(&tool.id)
+        .and_then(|n| tool.variants.get(n))
+    {
         Some(v) => &v.strategy,
         None => &tool.strategy,
     };

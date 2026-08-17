@@ -269,7 +269,11 @@ impl PackageManager {
                     return None;
                 }
                 let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if s.is_empty() { None } else { Some(s) }
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
             }
             PackageManager::Dnf | PackageManager::Yum | PackageManager::Zypper => {
                 let out = Command::new("rpm")
@@ -280,7 +284,11 @@ impl PackageManager {
                     return None;
                 }
                 let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if s.is_empty() { None } else { Some(s) }
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s)
+                }
             }
             PackageManager::Pacman => {
                 let out = Command::new("pacman").args(["-Q", pkg]).output().ok()?;
@@ -314,7 +322,10 @@ impl PackageManager {
         use std::process::Command;
         match self {
             PackageManager::Apt => {
-                let out = Command::new("apt-cache").args(["policy", pkg]).output().ok()?;
+                let out = Command::new("apt-cache")
+                    .args(["policy", pkg])
+                    .output()
+                    .ok()?;
                 if !out.status.success() {
                     return None;
                 }

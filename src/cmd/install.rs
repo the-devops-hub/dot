@@ -323,7 +323,11 @@ pub fn install_tool(
         Some((pm, pkg)) => pm.installed_version(pkg).unwrap_or_else(|| version.clone()),
         None => version.clone(),
     };
-    let method = if used_brew { "brew" } else { strategy.method_name() };
+    let method = if used_brew {
+        "brew"
+    } else {
+        strategy.method_name()
+    };
     state.add_tool(&tool.id, &recorded_version, method, false)?;
     state.set_variant(&tool.id, chosen_variant.as_deref())?;
     state.save()?;
