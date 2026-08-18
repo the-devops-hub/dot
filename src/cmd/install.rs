@@ -493,7 +493,7 @@ fn has_display() -> bool {
 fn select_variant<'a>(
     tool: &'a Tool,
     variant_arg: Option<&str>,
-    state: &State,
+    state: &mut State,
 ) -> (Option<String>, &'a crate::tool::InstallStrategy) {
     if let Some(name) = variant_arg {
         if name == "default" || name == "primary" {
@@ -516,9 +516,28 @@ fn select_variant<'a>(
     }
 
     if state.is_installed(&tool.id) {
-        if let Some(name) = state.get_variant(&tool.id) {
-            if let Some(v) = tool.variants.get(name) {
-                return (Some(name.to_string()), &v.strategy);
+        let recorded = state.get_variant(&tool.id).map(|s| s.to_string());
+        if let Some(name) = &recorded {
+            if let Some(v) = tool.variants.get(name.as_str()) {
+                return (Some(name.clone()), &v.strategy);
+            }
+            // Stale variant name no longer defined on this tool - fall back to
+            // the primary strategy below.
+        } else if !state.variant_hint_shown(&tool.id) {
+            // Sticky on the primary strategy. If a variant's auto_detect now
+            // matches this environment, surface a one-time hint instead of
+            // silently switching strategies out from under an existing install.
+            for (name, v) in &tool.variants {
+                if let Some(cond) = &v.auto_detect {
+                    if shell_condition_true(cond) {
+                        eprintln!(
+                            "  Note: a '{name}' variant of {} matches your environment, but this install is still using the primary strategy (from before variants existed, or a deliberate choice). Switch anytime with: dot install {} --variant {name} --force",
+                            tool.name, tool.id
+                        );
+                        let _ = state.mark_variant_hint_shown(&tool.id);
+                        break;
+                    }
+                }
             }
         }
         return (None, &tool.strategy);
