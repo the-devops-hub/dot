@@ -23,6 +23,12 @@ pub struct ToolEntry {
     /// `None` means the tool's primary strategy was used.
     #[serde(default)]
     pub variant: Option<String>,
+    /// Whether we've already suggested switching to a better-suited variant for
+    /// this tool (see `select_variant` in `cmd/install.rs`) - printed once, not
+    /// on every `dot upgrade`, so it doesn't nag on a deliberate primary-strategy
+    /// install.
+    #[serde(default)]
+    pub variant_hint_shown: bool,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -107,6 +113,14 @@ impl State {
             .as_secs()
             .to_string();
         let source = format!("~/.local/bin/{id}");
+        // Preserve variant_hint_shown across re-installs/upgrades of an already
+        // known tool - it should only ever fire once, not once per version bump.
+        let variant_hint_shown = self
+            .data
+            .tools
+            .get(id)
+            .map(|e| e.variant_hint_shown)
+            .unwrap_or(false);
         self.data.tools.insert(
             id.to_string(),
             ToolEntry {
@@ -117,6 +131,7 @@ impl State {
                 status: "installed".to_string(),
                 pinned,
                 variant: None,
+                variant_hint_shown,
             },
         );
         self.save()
@@ -136,6 +151,23 @@ impl State {
 
     pub fn get_variant(&self, id: &str) -> Option<&str> {
         self.data.tools.get(id)?.variant.as_deref()
+    }
+
+    pub fn variant_hint_shown(&self, id: &str) -> bool {
+        self.data
+            .tools
+            .get(id)
+            .map(|e| e.variant_hint_shown)
+            .unwrap_or(false)
+    }
+
+    pub fn mark_variant_hint_shown(&mut self, id: &str) -> Result<(), DotError> {
+        if let Some(entry) = self.data.tools.get_mut(id) {
+            entry.variant_hint_shown = true;
+            self.save()
+        } else {
+            Ok(())
+        }
     }
 
     pub fn remove_tool(&mut self, id: &str) -> Result<(), DotError> {
