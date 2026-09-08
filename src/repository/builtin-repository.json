@@ -125,6 +125,9 @@
                 "type": "github_release",
                 "url_template": "https://github.com/int128/kubelogin/releases/download/v{version}/kubelogin_{os}_{arch}.zip",
                 "binary_in_archive": "kubelogin",
+                "extra_symlinks": [
+                    "kubectl-oidc_login"
+                ],
                 "checksum_url_template": "https://github.com/int128/kubelogin/releases/download/v{version}/kubelogin_{os}_{arch}.zip.sha256"
             }
         },

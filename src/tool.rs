@@ -323,6 +323,11 @@ pub struct GithubReleaseStrategy {
     pub binary_in_archive: String,
     #[serde(default)]
     pub checksum_url_template: Option<String>,
+    /// Extra names to symlink to the installed binary in the bin dir. Used for
+    /// tools that must be visible under more than one name on PATH, e.g. the
+    /// kubectl plugin link `kubectl-oidc_login` -> `kubelogin`.
+    #[serde(default)]
+    pub extra_symlinks: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -445,6 +450,15 @@ impl InstallStrategy {
 
     pub fn execute(&self, ctx: &crate::install::InstallContext) -> anyhow::Result<()> {
         crate::install::execute(self, ctx)
+    }
+
+    /// Extra bin-dir names that should point at the primary binary via symlink.
+    /// Non-empty only for strategies that support it (currently `github_release`).
+    pub fn extra_symlinks(&self) -> &[String] {
+        match self {
+            InstallStrategy::GithubRelease(s) => &s.extra_symlinks,
+            _ => &[],
+        }
     }
 }
 

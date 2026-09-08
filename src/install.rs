@@ -115,6 +115,19 @@ fn extract_archive(archive_path: &Path, dest_dir: &Path, strip: u32) -> anyhow::
     Ok(())
 }
 
+/// Create `bin_dir/<link_name>` as a relative symlink to a sibling binary
+/// `bin_dir/<target_name>`. Used for tools that must appear under more than one
+/// name on PATH, such as the kubectl plugin link `kubectl-oidc_login` -> `kubelogin`.
+pub fn link_alias_in_bin(bin_dir: &Path, link_name: &str, target_name: &str) -> anyhow::Result<()> {
+    std::fs::create_dir_all(bin_dir)?;
+    let dst = bin_dir.join(link_name);
+    let _ = std::fs::remove_file(&dst);
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target_name, &dst)
+        .with_context(|| format!("symlink {} -> {target_name}", dst.display()))?;
+    Ok(())
+}
+
 fn symlink_into_bin(src: &Path, bin_dir: &Path) -> anyhow::Result<()> {
     let name = src
         .file_name()
@@ -170,6 +183,10 @@ fn execute_github_release(
     let bin_subpath = render(&s.binary_in_archive, &tctx)?;
     let src_bin = extract_dir.join(&bin_subpath);
     install_binary(&src_bin, &ctx.tool_id, &ctx.bin_dir)?;
+
+    for link_name in &s.extra_symlinks {
+        link_alias_in_bin(&ctx.bin_dir, link_name, &ctx.tool_id)?;
+    }
     Ok(())
 }
 
@@ -461,4 +478,41 @@ fn execute_script_installer(
         symlink_into_bin(&src, &ctx.bin_dir)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[cfg(unix)]
+    #[test]
+    fn link_alias_creates_relative_symlink() {
+        let tmp = TempDir::new().unwrap();
+        let bin = tmp.path();
+        std::fs::write(bin.join("kubelogin"), b"#!/bin/sh\n").unwrap();
+
+        link_alias_in_bin(bin, "kubectl-oidc_login", "kubelogin").unwrap();
+
+        let link = bin.join("kubectl-oidc_login");
+        let target = std::fs::read_link(&link).unwrap();
+        assert_eq!(target, Path::new("kubelogin"));
+        assert!(link.exists(), "link should resolve to the sibling binary");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn link_alias_replaces_stale_symlink() {
+        let tmp = TempDir::new().unwrap();
+        let bin = tmp.path();
+        std::fs::write(bin.join("kubelogin"), b"#!/bin/sh\n").unwrap();
+        std::os::unix::fs::symlink("gone", bin.join("kubectl-oidc_login")).unwrap();
+
+        link_alias_in_bin(bin, "kubectl-oidc_login", "kubelogin").unwrap();
+
+        assert_eq!(
+            std::fs::read_link(bin.join("kubectl-oidc_login")).unwrap(),
+            Path::new("kubelogin")
+        );
+    }
 }

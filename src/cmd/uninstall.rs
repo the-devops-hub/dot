@@ -49,10 +49,21 @@ fn uninstall_one_inner(id: &str, state: &mut State, tools: &[Tool]) -> anyhow::R
     // Remove binary (skip for system_package)
     if method != "system_package" {
         let home = dirs::home_dir().unwrap_or_default();
-        let bin_path = home.join(".local/bin").join(id);
+        let local_bin = home.join(".local/bin");
+        let bin_path = local_bin.join(id);
         if bin_path.exists() {
             output::print_step_start("Removing binary", bin_path.to_str().unwrap_or(""));
             let _ = std::fs::remove_file(&bin_path);
+        }
+        // Remove any extra symlinks (kubectl plugin names, etc.). A broken
+        // symlink reports `exists() == false`, so check symlink metadata.
+        if let Some(tool) = tools.iter().find(|t| t.id == id) {
+            for link_name in tool.strategy.extra_symlinks() {
+                let link_path = local_bin.join(link_name);
+                if link_path.symlink_metadata().is_ok() {
+                    let _ = std::fs::remove_file(&link_path);
+                }
+            }
         }
     }
 
