@@ -66,7 +66,8 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
 
     for tool_id in state.tools().keys() {
         let bin_path = local_bin.join(tool_id);
-        if bin_path.exists() {
+        let bin_in_local = bin_path.exists();
+        if bin_in_local {
             print_pass(tool_id, bin_path.to_str().unwrap_or(""), colored);
             pass += 1;
         } else if let Some(found) = crate::util::find_in_path(tool_id) {
@@ -79,6 +80,43 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
                 colored,
             );
             fail += 1;
+        }
+
+        // Extra symlinks (e.g. kubectl plugin names like `kubectl-oidc_login`).
+        // kubectl only discovers plugins by the `kubectl-<name>` filename, so a
+        // missing link silently breaks `kubectl oidc-login` even though the tool
+        // is installed. Recreate it when the primary binary lives in ~/.local/bin.
+        let Some(tool) = tools.iter().find(|t| t.id == *tool_id) else {
+            continue;
+        };
+        for link_name in tool.strategy.extra_symlinks() {
+            let link_path = local_bin.join(link_name);
+            if link_path.exists() {
+                print_pass(link_name, link_path.to_str().unwrap_or(""), colored);
+                pass += 1;
+            } else if bin_in_local {
+                match crate::install::link_alias_in_bin(&local_bin, link_name, tool_id) {
+                    Ok(()) => {
+                        print_warn(
+                            link_name,
+                            &format!("missing link recreated -> {tool_id}"),
+                            colored,
+                        );
+                        warn += 1;
+                    }
+                    Err(e) => {
+                        print_fail(link_name, &format!("could not create link: {e}"), colored);
+                        fail += 1;
+                    }
+                }
+            } else {
+                print_fail(
+                    link_name,
+                    &format!("missing - run: dot install {tool_id} --force"),
+                    colored,
+                );
+                fail += 1;
+            }
         }
     }
 

@@ -68,4 +68,29 @@ mod tests {
         let tools = parse_repository_json(BUILTIN_REPO_BYTES).unwrap();
         assert_eq!(tools.len(), 42);
     }
+
+    #[test]
+    fn kubelogin_declares_kubectl_plugin_symlink() {
+        let tools = parse_repository_json(BUILTIN_REPO_BYTES).unwrap();
+        let kubelogin = tools.iter().find(|t| t.id == "kubelogin").unwrap();
+        assert_eq!(
+            kubelogin.strategy.extra_symlinks(),
+            ["kubectl-oidc_login".to_string()]
+        );
+    }
+
+    #[test]
+    fn extra_symlinks_defaults_to_empty() {
+        let json = br#"{
+            "tools": [{
+                "id": "mytool",
+                "name": "MyTool",
+                "groups": ["utils"],
+                "version_source": {"type": "github_release", "repo": "me/mytool"},
+                "strategy": {"type": "github_release", "url_template": "https://example.com/v{version}/mytool.tar.gz", "binary_in_archive": "mytool"}
+            }]
+        }"#;
+        let tools = parse_repository_json(json).unwrap();
+        assert!(tools[0].strategy.extra_symlinks().is_empty());
+    }
 }
