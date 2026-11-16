@@ -18,7 +18,7 @@ zip      = "8.6"
 xz2      = "0.1"
 thiserror = "2.0"
 anyhow   = "1.0"
-dirs     = "6.0"
+dirs     = "7.0"
 console  = "0.16"
 chrono   = { version = "0.4", features = ["serde"] }
 sha2     = "0.11"
