@@ -245,7 +245,7 @@ pub fn install_tool(
         }
     }
 
-    let installed_ver = state.get_version(&tool.id).map(|s| s.to_string());
+    let installed_ver = tool.installed_version(state.get_version(&tool.id));
 
     // Already up to date?
     if !force {

@@ -534,6 +534,62 @@ pub struct Tool {
     /// install when its `auto_detect` shell condition is true - see `ToolVariant`.
     #[serde(default)]
     pub variants: HashMap<String, ToolVariant>,
+    /// Shell command that prints the version actually installed (e.g.
+    /// `kubectl version --client`). Defaults to `<binary> --version`; set to an
+    /// empty string to disable detection for tools with no usable version output.
+    /// Needed because self-updating tools make the version recorded in state stale.
+    #[serde(default)]
+    pub version_command: Option<String>,
+}
+
+impl Tool {
+    /// The command used to detect the on-disk version, if any. System packages are
+    /// skipped (the package manager is the source of truth for those).
+    fn effective_version_command(&self) -> Option<String> {
+        match self.version_command.as_deref() {
+            Some("") => return None,
+            Some(c) => return Some(c.to_string()),
+            None => {}
+        }
+        let bin = match &self.strategy {
+            InstallStrategy::SystemPackage(_) => return None,
+            InstallStrategy::PipVenv(p) => p.binary_name.as_str(),
+            _ => self.id.as_str(),
+        };
+        Some(format!("{bin} --version"))
+    }
+
+    /// Version of the tool as it is on disk right now: the output of its version
+    /// command if it runs and parses, otherwise the version recorded in state.
+    pub fn installed_version(&self, recorded: Option<&str>) -> Option<String> {
+        if let Some(cmd) = self.effective_version_command() {
+            let out = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(cmd)
+                .stdin(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .output()
+                .ok()
+                .filter(|o| o.status.success());
+            if let Some(v) = out.and_then(|o| parse_version(&String::from_utf8_lossy(&o.stdout))) {
+                return Some(v);
+            }
+        }
+        recorded.map(str::to_string)
+    }
+}
+
+/// Extract the first dotted-number token (e.g. "2.1.5" from "2.1.5 (Claude Code)").
+pub fn parse_version(output: &str) -> Option<String> {
+    output
+        .split(|c: char| c.is_whitespace() || c == 'v' || c == ',')
+        .map(|t| t.trim_matches(|c: char| !c.is_ascii_digit() && c != '.'))
+        .find(|t| {
+            t.contains('.')
+                && t.split('.')
+                    .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+        })
+        .map(str::to_string)
 }
 
 /// An alternate install strategy for a `Tool`, selectable by name.
@@ -605,6 +661,19 @@ mod tests {
             r#"{"type":"script_installer","url_template":"https://sh.rustup.rs","args":["-y"]}"#;
         let s: InstallStrategy = serde_json::from_str(json).unwrap();
         assert!(matches!(s, InstallStrategy::ScriptInstaller(_)));
+    }
+
+    #[test]
+    fn parse_version_extracts_semver() {
+        assert_eq!(
+            parse_version("2.1.5 (Claude Code)\n").as_deref(),
+            Some("2.1.5")
+        );
+        assert_eq!(
+            parse_version("tool version v1.2.3").as_deref(),
+            Some("1.2.3")
+        );
+        assert_eq!(parse_version("no version here"), None);
     }
 
     #[test]

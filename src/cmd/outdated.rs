@@ -35,7 +35,7 @@ pub struct OutdatedArgs {}
 pub fn run(_args: &OutdatedArgs, state: &State, tools: &[Tool]) -> anyhow::Result<()> {
     struct OutdatedEntry<'a> {
         name: &'a str,
-        installed: &'a str,
+        installed: String,
         latest: String,
         pinned: bool,
     }
@@ -50,18 +50,22 @@ pub fn run(_args: &OutdatedArgs, state: &State, tools: &[Tool]) -> anyhow::Resul
         };
         checked += 1;
 
+        let installed = t
+            .installed_version(Some(&entry.version))
+            .unwrap_or_else(|| entry.version.clone());
+
         let latest = match resolve_latest(t, state) {
             Some(v) => v,
             None => continue,
         };
 
-        if latest == entry.version {
+        if latest == installed {
             continue;
         }
 
         outdated.push(OutdatedEntry {
             name: &t.name,
-            installed: &entry.version,
+            installed,
             latest,
             pinned: entry.pinned,
         });

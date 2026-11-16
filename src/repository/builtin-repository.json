@@ -4,6 +4,7 @@
     "tools": [
         {
             "id": "helm",
+            "version_command": "helm version --short",
             "name": "Helm",
             "description": "The Kubernetes Package Manager",
             "groups": [
@@ -43,6 +44,7 @@
         },
         {
             "id": "kubectl",
+            "version_command": "kubectl version --client",
             "name": "kubectl",
             "description": "The Kubernetes command-line tool",
             "groups": [
@@ -68,6 +70,7 @@
         },
         {
             "id": "argocd",
+            "version_command": "argocd version --client --short",
             "name": "ArgoCD CLI",
             "description": "CLI for Argo CD \u2014 GitOps continuous delivery for Kubernetes",
             "groups": [
@@ -91,6 +94,7 @@
         },
         {
             "id": "k9s",
+            "version_command": "k9s version",
             "name": "k9s",
             "description": "Terminal UI to interact with Kubernetes clusters",
             "groups": [
@@ -172,6 +176,7 @@
         },
         {
             "id": "kubens",
+            "version_command": "",
             "name": "kubens",
             "description": "Switch between Kubernetes namespaces quickly",
             "groups": [
@@ -191,6 +196,7 @@
         },
         {
             "id": "kube-linter",
+            "version_command": "kube-linter version",
             "name": "KubeLinter",
             "description": "Static analysis tool that checks Kubernetes YAML files and Helm charts for misconfigurations",
             "groups": [
@@ -240,6 +246,7 @@
         },
         {
             "id": "hcledit",
+            "version_command": "hcledit version",
             "name": "hcledit",
             "description": "A command line editor for HCL",
             "groups": [
@@ -259,6 +266,7 @@
         },
         {
             "id": "terraform-docs",
+            "version_command": "terraform-docs version",
             "name": "terraform-docs",
             "description": "Generate documentation from Terraform modules",
             "groups": [
@@ -386,6 +394,7 @@
         },
         {
             "id": "opentofu",
+            "version_command": "tofu --version",
             "name": "OpenTofu",
             "description": "Open-source fork of Terraform \u2014 community-governed drop-in replacement",
             "groups": [
@@ -519,6 +528,7 @@
         },
         {
             "id": "smartgit",
+            "version_command": "",
             "name": "SmartGit",
             "description": "Feature-rich Git GUI client with visual diff and merge tool",
             "groups": [
@@ -781,6 +791,7 @@
         },
         {
             "id": "zig",
+            "version_command": "zig version",
             "name": "Zig",
             "description": "General-purpose programming language and toolchain",
             "groups": [
@@ -803,6 +814,7 @@
         },
         {
             "id": "go",
+            "version_command": "go version",
             "name": "Go",
             "description": "Open source programming language by Google",
             "groups": [
@@ -828,6 +840,7 @@
         },
         {
             "id": "rust",
+            "version_command": "rustc --version",
             "name": "Rust",
             "description": "Systems programming language focused on safety, speed, and concurrency",
             "groups": [
