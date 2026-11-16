@@ -50,6 +50,12 @@ pub enum DotError {
     #[error("pip install failed")]
     PipInstallFailed,
 
+    #[error("node/npm not found - install Node.js to use npm-based tools")]
+    NodeNotFound,
+
+    #[error("npm install failed")]
+    NpmInstallFailed,
+
     #[error("package install failed")]
     PackageInstallFailed,
 

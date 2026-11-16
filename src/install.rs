@@ -47,6 +47,7 @@ pub fn execute(
         InstallStrategy::HashicorpRelease(s) => execute_hashicorp(s, ctx),
         InstallStrategy::SystemPackage(s) => execute_system_package(s, ctx),
         InstallStrategy::PipVenv(s) => execute_pip_venv(s, ctx),
+        InstallStrategy::Npm(s) => execute_npm(s, ctx),
         InstallStrategy::Tarball(s) => execute_tarball(s, ctx),
         InstallStrategy::ScriptInstaller(s) => execute_script_installer(s, ctx),
     }
@@ -332,6 +333,59 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
         let _ = std::fs::remove_file(&extra_dst);
         #[cfg(unix)]
         std::os::unix::fs::symlink(&extra_src, &extra_dst)?;
+    }
+    Ok(())
+}
+
+fn node_install_hint() -> &'static str {
+    use crate::platform::PackageManager;
+    match PackageManager::detect() {
+        PackageManager::Apt => "sudo apt install nodejs npm",
+        PackageManager::Dnf | PackageManager::Yum => "sudo dnf install nodejs npm",
+        PackageManager::Pacman => "sudo pacman -S nodejs npm",
+        PackageManager::Apk => "sudo apk add nodejs npm",
+        PackageManager::Brew => "brew install node",
+        _ => "install Node.js from https://nodejs.org",
+    }
+}
+
+fn execute_npm(s: &crate::tool::NpmStrategy, ctx: &InstallContext) -> anyhow::Result<()> {
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/root"));
+    let install_dir = if s.install_dir_rel.starts_with("~/") {
+        home.join(&s.install_dir_rel[2..])
+    } else {
+        PathBuf::from(&s.install_dir_rel)
+    };
+
+    if crate::util::find_in_path("node").is_none() || crate::util::find_in_path("npm").is_none() {
+        output::print_detail(&format!(
+            "node and npm are required: {}",
+            node_install_hint()
+        ));
+        anyhow::bail!(crate::error::DotError::NodeNotFound);
+    }
+
+    std::fs::create_dir_all(&install_dir)?;
+    let spec = format!("{}@{}", s.package, ctx.version);
+    output::print_step_start("npm install", &spec);
+    let status = std::process::Command::new("npm")
+        .args(["install", "--prefix"])
+        .arg(&install_dir)
+        .args(["--no-fund", "--no-audit", "--loglevel=error", &spec])
+        .status()
+        .context("spawn npm install")?;
+    if !status.success() {
+        anyhow::bail!(crate::error::DotError::NpmInstallFailed);
+    }
+
+    std::fs::create_dir_all(&ctx.bin_dir)?;
+    let npm_bin = install_dir.join("node_modules/.bin");
+    for name in std::iter::once(&s.binary_name).chain(s.extra_binaries.iter()) {
+        let src = npm_bin.join(name);
+        let dst = ctx.bin_dir.join(name);
+        let _ = std::fs::remove_file(&dst);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&src, &dst)?;
     }
     Ok(())
 }

@@ -8,6 +8,7 @@ pub const METHOD_DIRECT_BINARY: &str = "direct_binary";
 pub const METHOD_HASHICORP: &str = "hashicorp_release";
 pub const METHOD_SYSTEM_PACKAGE: &str = "system_package";
 pub const METHOD_PIP_VENV: &str = "pip_venv";
+pub const METHOD_NPM: &str = "npm";
 pub const METHOD_TARBALL: &str = "tarball";
 pub const METHOD_SCRIPT_INSTALLER: &str = "script_installer";
 
@@ -69,6 +70,11 @@ pub struct PypiSourceParams {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NpmSourceParams {
+    pub package: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct StaticSourceParams {
     pub version: String,
 }
@@ -81,6 +87,7 @@ pub enum VersionSource {
     Hashicorp(HashicorpSourceParams),
     K8sStableTxt,
     Pypi(PypiSourceParams),
+    Npm(NpmSourceParams),
     Static(StaticSourceParams),
     GcloudSdk,
     Ziglang,
@@ -95,6 +102,7 @@ const GITHUB_API_TAGS: &str = "https://api.github.com/repos/{}/tags";
 const HASHICORP_CHECKPOINT: &str = "https://checkpoint-api.hashicorp.com/v1/check/{}";
 const K8S_STABLE_TXT: &str = "https://dl.k8s.io/release/stable.txt";
 const PYPI_JSON: &str = "https://pypi.org/pypi/{}/json";
+const NPM_LATEST: &str = "https://registry.npmjs.org/{}/latest";
 const GCLOUD_COMPONENTS: &str =
     "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json";
 const ZIGLANG_INDEX: &str = "https://ziglang.org/download/index.json";
@@ -162,6 +170,22 @@ impl VersionSource {
                     return Err(DotError::VersionNotFound);
                 }
                 Ok(r.info.version)
+            }
+
+            VersionSource::Npm(p) => {
+                let url = NPM_LATEST.replace("{}", &p.package);
+                let body = http::get(&url).map_err(|_| DotError::VersionFetchFailed)?;
+                #[derive(serde::Deserialize)]
+                struct Resp {
+                    #[serde(default)]
+                    version: String,
+                }
+                let r: Resp =
+                    serde_json::from_str(&body).map_err(|_| DotError::VersionParseFailed)?;
+                if r.version.is_empty() {
+                    return Err(DotError::VersionNotFound);
+                }
+                Ok(r.version)
             }
 
             VersionSource::GcloudSdk => {
@@ -389,6 +413,17 @@ pub struct PipVenvStrategy {
     pub extra_binaries: Vec<String>,
 }
 
+/// Installs an npm package into its own prefix (`npm install --prefix <dir>`)
+/// and symlinks its binaries into the bin dir. Requires `node` and `npm`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NpmStrategy {
+    pub package: String,
+    pub install_dir_rel: String,
+    pub binary_name: String,
+    #[serde(default)]
+    pub extra_binaries: Vec<String>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TarballStrategy {
     pub url_template: String,
@@ -431,6 +466,7 @@ pub enum InstallStrategy {
     HashicorpRelease(HashicorpReleaseStrategy),
     SystemPackage(SystemPackageStrategy),
     PipVenv(PipVenvStrategy),
+    Npm(NpmStrategy),
     Tarball(TarballStrategy),
     ScriptInstaller(ScriptInstallerStrategy),
 }
@@ -443,6 +479,7 @@ impl InstallStrategy {
             InstallStrategy::HashicorpRelease(_) => METHOD_HASHICORP,
             InstallStrategy::SystemPackage(_) => METHOD_SYSTEM_PACKAGE,
             InstallStrategy::PipVenv(_) => METHOD_PIP_VENV,
+            InstallStrategy::Npm(_) => METHOD_NPM,
             InstallStrategy::Tarball(_) => METHOD_TARBALL,
             InstallStrategy::ScriptInstaller(_) => METHOD_SCRIPT_INSTALLER,
         }
@@ -554,6 +591,7 @@ impl Tool {
         let bin = match &self.strategy {
             InstallStrategy::SystemPackage(_) => return None,
             InstallStrategy::PipVenv(p) => p.binary_name.as_str(),
+            InstallStrategy::Npm(n) => n.binary_name.as_str(),
             _ => self.id.as_str(),
         };
         Some(format!("{bin} --version"))
@@ -674,6 +712,17 @@ mod tests {
             Some("1.2.3")
         );
         assert_eq!(parse_version("no version here"), None);
+    }
+
+    #[test]
+    fn deserialize_npm_strategy_and_source() {
+        let json = r#"{"type":"npm","package":"wrangler","install_dir_rel":"~/.local/opt/wrangler","binary_name":"wrangler"}"#;
+        let s: InstallStrategy = serde_json::from_str(json).unwrap();
+        assert!(matches!(s, InstallStrategy::Npm(_)));
+        assert_eq!(s.method_name(), "npm");
+        let vs: VersionSource =
+            serde_json::from_str(r#"{"type":"npm","package":"wrangler"}"#).unwrap();
+        assert!(matches!(vs, VersionSource::Npm(_)));
     }
 
     #[test]
