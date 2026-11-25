@@ -65,12 +65,13 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
     output::print_section_header("Installed Tools");
 
     for tool_id in state.tools().keys() {
+        let tool = tools.iter().find(|t| t.id == *tool_id);
         let bin_path = local_bin.join(tool_id);
         let bin_in_local = bin_path.exists();
         if bin_in_local {
             print_pass(tool_id, bin_path.to_str().unwrap_or(""), colored);
             pass += 1;
-        } else if let Some(found) = crate::util::find_in_path(tool_id) {
+        } else if let Some(found) = find_tool_binary(tool_id, tool) {
             print_pass(tool_id, &found, colored);
             pass += 1;
         } else {
@@ -86,7 +87,7 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
         // kubectl only discovers plugins by the `kubectl-<name>` filename, so a
         // missing link silently breaks `kubectl oidc-login` even though the tool
         // is installed. Recreate it when the primary binary lives in ~/.local/bin.
-        let Some(tool) = tools.iter().find(|t| t.id == *tool_id) else {
+        let Some(tool) = tool else {
             continue;
         };
         for link_name in tool.strategy.extra_symlinks() {
@@ -191,6 +192,29 @@ pub fn run(_args: &DoctorArgs, state: &State, tools: &[Tool]) -> anyhow::Result<
         eprintln!("\n  {pass} passed  {warn} warnings  {fail} failed\n");
     }
     Ok(())
+}
+
+/// Look for a tool's binary on PATH, then in the directories its shell integration
+/// adds to PATH, trying the tool id and the executable named by its version command.
+fn find_tool_binary(tool_id: &str, tool: Option<&crate::tool::Tool>) -> Option<String> {
+    let names = match tool {
+        Some(t) => t.binary_names(),
+        None => vec![tool_id.to_string()],
+    };
+    let home = dirs::home_dir().unwrap_or_default();
+    for name in &names {
+        if let Some(found) = crate::util::find_in_path(name) {
+            return Some(found);
+        }
+        for dir in tool.map(|t| t.shell_path_dirs.as_slice()).unwrap_or(&[]) {
+            let dir = dir.replace("$HOME", home.to_str().unwrap_or(""));
+            let candidate = std::path::Path::new(&dir).join(name);
+            if candidate.is_file() {
+                return candidate.to_str().map(str::to_string);
+            }
+        }
+    }
+    None
 }
 
 fn print_pass(label: &str, detail: &str, colored: bool) {

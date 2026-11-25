@@ -597,6 +597,21 @@ impl Tool {
         Some(format!("{bin} --version"))
     }
 
+    /// Binary names `doctor` should look for: the tool id, plus the executable named
+    /// by `version_command` when it differs (e.g. tool `rust` ships `rustc`).
+    pub fn binary_names(&self) -> Vec<String> {
+        let mut names = vec![self.id.clone()];
+        if let Some(first) = self
+            .effective_version_command()
+            .and_then(|c| c.split_whitespace().next().map(str::to_string))
+        {
+            if !names.contains(&first) {
+                names.push(first);
+            }
+        }
+        names
+    }
+
     /// Version of the tool as it is on disk right now: the output of its version
     /// command if it runs and parses, otherwise the version recorded in state.
     pub fn installed_version(&self, recorded: Option<&str>) -> Option<String> {
@@ -723,6 +738,18 @@ mod tests {
         let vs: VersionSource =
             serde_json::from_str(r#"{"type":"npm","package":"wrangler"}"#).unwrap();
         assert!(matches!(vs, VersionSource::Npm(_)));
+    }
+
+    #[test]
+    fn binary_names_include_version_command_executable() {
+        let tools = crate::repository::loader::parse_repository_json(include_bytes!(
+            "repository/builtin-repository.json"
+        ))
+        .unwrap();
+        let rust = tools.iter().find(|t| t.id == "rust").unwrap();
+        assert_eq!(rust.binary_names(), ["rust", "rustc"]);
+        let jq = tools.iter().find(|t| t.id == "jq").unwrap();
+        assert_eq!(jq.binary_names(), ["jq"]);
     }
 
     #[test]
