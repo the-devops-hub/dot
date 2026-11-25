@@ -1243,6 +1243,30 @@
             }
         },
         {
+            "id": "node",
+            "name": "Node.js",
+            "description": "JavaScript runtime (LTS), required by npm-based tools such as wrangler",
+            "groups": [
+                "dev"
+            ],
+            "homepage": "https://nodejs.org",
+            "version_source": {
+                "type": "node_lts"
+            },
+            "strategy": {
+                "type": "tarball",
+                "url_template": "https://nodejs.org/dist/v{version}/node-v{version}-{os}-{arch_x64}.tar.xz",
+                "strip_components": 0,
+                "sdk_dir": "node-v{version}-{os}-{arch_x64}",
+                "sdk_name": "node",
+                "symlinks": [
+                    "bin/node",
+                    "bin/npm",
+                    "bin/npx"
+                ]
+            }
+        },
+        {
             "id": "wrangler",
             "name": "Wrangler",
             "description": "Cloudflare developer platform CLI for Workers, Pages, R2, KV and D1",

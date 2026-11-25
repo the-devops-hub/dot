@@ -92,6 +92,7 @@ pub enum VersionSource {
     GcloudSdk,
     Ziglang,
     GoDl,
+    NodeLts,
     RustStable,
 }
 
@@ -106,6 +107,7 @@ const NPM_LATEST: &str = "https://registry.npmjs.org/{}/latest";
 const GCLOUD_COMPONENTS: &str =
     "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json";
 const ZIGLANG_INDEX: &str = "https://ziglang.org/download/index.json";
+const NODE_INDEX: &str = "https://nodejs.org/dist/index.json";
 const GO_DOWNLOADS: &str = "https://go.dev/dl/?mode=json";
 const RUST_STABLE_CHANNEL: &str = "https://static.rust-lang.org/dist/channel-rust-stable.toml";
 
@@ -239,6 +241,25 @@ impl VersionSource {
                     return Ok(ver);
                 }
                 Err(DotError::VersionNotFound)
+            }
+
+            VersionSource::NodeLts => {
+                let body = http::get(NODE_INDEX).map_err(|_| DotError::VersionFetchFailed)?;
+                #[derive(serde::Deserialize)]
+                struct Entry {
+                    #[serde(default)]
+                    version: String,
+                    // `false` for non-LTS releases, the codename string for LTS ones.
+                    #[serde(default)]
+                    lts: serde_json::Value,
+                }
+                let entries: Vec<Entry> =
+                    serde_json::from_str(&body).map_err(|_| DotError::VersionParseFailed)?;
+                entries
+                    .into_iter()
+                    .find(|e| e.lts.is_string())
+                    .map(|e| e.version.trim_start_matches('v').to_string())
+                    .ok_or(DotError::VersionNotFound)
             }
 
             VersionSource::RustStable => {
@@ -692,6 +713,12 @@ mod tests {
         let json = r#"{"type":"rust_stable"}"#;
         let vs: VersionSource = serde_json::from_str(json).unwrap();
         assert!(matches!(vs, VersionSource::RustStable));
+    }
+
+    #[test]
+    fn deserialize_node_lts() {
+        let vs: VersionSource = serde_json::from_str(r#"{"type":"node_lts"}"#).unwrap();
+        assert!(matches!(vs, VersionSource::NodeLts));
     }
 
     #[test]

@@ -359,7 +359,7 @@ fn execute_npm(s: &crate::tool::NpmStrategy, ctx: &InstallContext) -> anyhow::Re
 
     if crate::util::find_in_path("node").is_none() || crate::util::find_in_path("npm").is_none() {
         output::print_detail(&format!(
-            "node and npm are required: {}",
+            "node and npm are required: {} (or: dot install node)",
             node_install_hint()
         ));
         anyhow::bail!(crate::error::DotError::NodeNotFound);
