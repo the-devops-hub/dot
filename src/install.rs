@@ -381,6 +381,10 @@ fn execute_npm(s: &crate::tool::NpmStrategy, ctx: &InstallContext) -> anyhow::Re
             .arg("--version")
             .output()
             .context("run node --version")?;
+        if !out.status.success() {
+            output::print_detail("`node --version` failed: is node on PATH working?");
+            anyhow::bail!(crate::error::DotError::NodeNotFound);
+        }
         let found = String::from_utf8_lossy(&out.stdout).trim().to_string();
         // An unparseable version is let through: npm itself will still complain if
         // the package really cannot run.
@@ -410,6 +414,12 @@ fn execute_npm(s: &crate::tool::NpmStrategy, ctx: &InstallContext) -> anyhow::Re
     let npm_bin = install_dir.join("node_modules/.bin");
     for name in std::iter::once(&s.binary_name).chain(s.extra_binaries.iter()) {
         let src = npm_bin.join(name);
+        if !src.exists() {
+            anyhow::bail!(
+                "npm package {} did not provide the '{name}' binary",
+                s.package
+            );
+        }
         let dst = ctx.bin_dir.join(name);
         let _ = std::fs::remove_file(&dst);
         #[cfg(unix)]
@@ -564,15 +574,15 @@ fn execute_script_installer(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
     #[test]
     fn node_major_parses_versions() {
         assert_eq!(super::node_major("v20.11.1\n"), Some(20));
         assert_eq!(super::node_major("18.0.0"), Some(18));
         assert_eq!(super::node_major("garbage"), None);
     }
-
-    use super::*;
-    use tempfile::TempDir;
 
     #[cfg(unix)]
     #[test]

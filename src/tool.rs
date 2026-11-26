@@ -522,6 +522,26 @@ impl InstallStrategy {
             _ => &[],
         }
     }
+
+    /// Every name this strategy links into the bin dir besides the tool's own
+    /// binary, for uninstall cleanup. Unlike `extra_symlinks` these are real
+    /// separate binaries (not aliases of the primary one), so they must not be
+    /// recreated by pointing at it.
+    pub fn extra_bin_links(&self) -> Vec<String> {
+        match self {
+            InstallStrategy::GithubRelease(s) => s.extra_symlinks.clone(),
+            InstallStrategy::PipVenv(s) => s.extra_binaries.clone(),
+            InstallStrategy::Npm(s) => s.extra_binaries.clone(),
+            // Tarball symlinks are paths inside the SDK (e.g. "bin/npm"); the link
+            // in the bin dir is named after the file.
+            InstallStrategy::Tarball(s) => s
+                .symlinks
+                .iter()
+                .filter_map(|p| p.rsplit('/').next().map(str::to_string))
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
 }
 
 // ─── Tool definition ──────────────────────────────────────────────────────────
@@ -657,17 +677,20 @@ impl Tool {
     }
 }
 
-/// Extract the first dotted-number token (e.g. "2.1.5" from "2.1.5 (Claude Code)").
+/// Extract the first dotted-number version from command output, e.g. "2.1.5" from
+/// "2.1.5 (Claude Code)", "3.14.0" from "v3.14.0+g3f4e7a5" or "1.22.1" from
+/// "go1.22.1". Any prefix before the first digit is dropped, and build metadata or
+/// pre-release suffixes after the numeric part are ignored.
 pub fn parse_version(output: &str) -> Option<String> {
-    output
-        .split(|c: char| c.is_whitespace() || c == 'v' || c == ',')
-        .map(|t| t.trim_matches(|c: char| !c.is_ascii_digit() && c != '.'))
-        .find(|t| {
-            t.contains('.')
-                && t.split('.')
-                    .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
-        })
-        .map(str::to_string)
+    output.split_whitespace().find_map(|tok| {
+        let tok = tok.trim_start_matches(|c: char| !c.is_ascii_digit());
+        let end = tok
+            .find(|c: char| !c.is_ascii_digit() && c != '.')
+            .unwrap_or(tok.len());
+        let v = tok[..end].trim_end_matches('.');
+        let parts: Vec<&str> = v.split('.').collect();
+        (parts.len() >= 2 && parts.iter().all(|p| !p.is_empty())).then(|| v.to_string())
+    })
 }
 
 /// An alternate install strategy for a `Tool`, selectable by name.
@@ -758,6 +781,20 @@ mod tests {
             Some("1.2.3")
         );
         assert_eq!(parse_version("no version here"), None);
+        assert_eq!(parse_version("v3.14.0+g3f4e7a5").as_deref(), Some("3.14.0"));
+        assert_eq!(
+            parse_version("argocd: v2.10.1+a79e0ea").as_deref(),
+            Some("2.10.1")
+        );
+        assert_eq!(
+            parse_version("go version go1.22.1 linux/amd64").as_deref(),
+            Some("1.22.1")
+        );
+        assert_eq!(
+            parse_version("aws-cli/2.40.0 Python/3.14.8").as_deref(),
+            Some("2.40.0")
+        );
+        assert_eq!(parse_version("1.2.3-rc1").as_deref(), Some("1.2.3"));
     }
 
     #[test]
