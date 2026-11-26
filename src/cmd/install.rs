@@ -20,7 +20,7 @@ pub struct InstallArgs {
     /// Specific version to install
     #[arg(short, long, value_name = "VERSION")]
     pub version: Option<String>,
-    /// Force reinstall even if already installed / up to date
+    /// Force reinstall even if already installed / up to date (pip tools also get a fresh venv)
     #[arg(long)]
     pub force: bool,
     /// Install a named alternate strategy (see `dot info <tool>`), or "default" to
@@ -301,6 +301,7 @@ pub fn install_tool(
             arch,
             bin_dir: bin_dir.clone(),
             tmp_dir: tmp_dir.clone(),
+            clean: force && !is_upgrade,
         };
 
         let install_result = strategy.execute(&ctx);

@@ -13,6 +13,9 @@ pub struct InstallContext {
     pub arch: Arch,
     pub bin_dir: PathBuf,
     pub tmp_dir: PathBuf,
+    /// Reinstall from scratch: set by `dot install --force` (not by `dot upgrade
+    /// --force`, which only overrides pins). Venv-based tools wipe their venv.
+    pub clean: bool,
 }
 
 impl InstallContext {
@@ -401,6 +404,16 @@ fn write_pip_log(tool_id: &str, text: &str) -> Option<PathBuf> {
     Some(path)
 }
 
+/// Delete a venv so it can be rebuilt. Refuses anything that is not a venv (no
+/// `pyvenv.cfg`), so a wrong `install_dir_rel` can never wipe an arbitrary directory.
+fn wipe_venv(install_dir: &Path) -> anyhow::Result<()> {
+    if install_dir.join("pyvenv.cfg").is_file() {
+        std::fs::remove_dir_all(install_dir)
+            .with_context(|| format!("remove venv {}", install_dir.display()))?;
+    }
+    Ok(())
+}
+
 fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> anyhow::Result<()> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/root"));
     let install_dir = if s.install_dir_rel.starts_with("~/") {
@@ -414,14 +427,15 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
         anyhow::bail!(crate::error::DotError::PythonNotFound);
     }
 
-    if let Some(py) = system_python_version() {
-        if venv_is_stale(&install_dir, &py, &s.package) {
-            output::print_detail(&format!(
-                "venv was built for a different Python than {py}: rebuilding it"
-            ));
-            std::fs::remove_dir_all(&install_dir)
-                .with_context(|| format!("remove stale venv {}", install_dir.display()))?;
-        }
+    let stale =
+        system_python_version().is_some_and(|py| venv_is_stale(&install_dir, &py, &s.package));
+    if ctx.clean || stale {
+        output::print_detail(if stale {
+            "venv was built for a different Python: rebuilding it"
+        } else {
+            "--force: rebuilding the venv from scratch"
+        });
+        wipe_venv(&install_dir)?;
     }
 
     output::print_step_start("Venv", install_dir.to_str().unwrap_or(""));
@@ -750,6 +764,24 @@ mod tests {
         // No recognisable error: fall back to the last lines.
         let got = summarize_pip_failure("a\nb\nc\n");
         assert_eq!(got, ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn wipe_venv_only_removes_real_venvs() {
+        let tmp = TempDir::new().unwrap();
+        let venv = tmp.path().join("venv");
+        std::fs::create_dir_all(venv.join("lib")).unwrap();
+        std::fs::write(venv.join("pyvenv.cfg"), "version = 3.15.2\n").unwrap();
+        wipe_venv(&venv).unwrap();
+        assert!(!venv.exists());
+
+        let other = tmp.path().join("not-a-venv");
+        std::fs::create_dir_all(&other).unwrap();
+        std::fs::write(other.join("precious.txt"), "x").unwrap();
+        wipe_venv(&other).unwrap();
+        assert!(other.join("precious.txt").exists());
+        // Missing dir is fine.
+        wipe_venv(&tmp.path().join("missing")).unwrap();
     }
 
     #[test]
