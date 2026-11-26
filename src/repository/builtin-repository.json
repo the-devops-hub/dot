@@ -4,6 +4,7 @@
     "tools": [
         {
             "id": "helm",
+            "version_command": "helm version --short",
             "name": "Helm",
             "description": "The Kubernetes Package Manager",
             "groups": [
@@ -43,6 +44,7 @@
         },
         {
             "id": "kubectl",
+            "version_command": "kubectl version --client",
             "name": "kubectl",
             "description": "The Kubernetes command-line tool",
             "groups": [
@@ -68,6 +70,7 @@
         },
         {
             "id": "argocd",
+            "version_command": "argocd version --client --short",
             "name": "ArgoCD CLI",
             "description": "CLI for Argo CD \u2014 GitOps continuous delivery for Kubernetes",
             "groups": [
@@ -91,6 +94,7 @@
         },
         {
             "id": "k9s",
+            "version_command": "k9s version",
             "name": "k9s",
             "description": "Terminal UI to interact with Kubernetes clusters",
             "groups": [
@@ -172,6 +176,7 @@
         },
         {
             "id": "kubens",
+            "version_command": "",
             "name": "kubens",
             "description": "Switch between Kubernetes namespaces quickly",
             "groups": [
@@ -191,6 +196,7 @@
         },
         {
             "id": "kube-linter",
+            "version_command": "kube-linter version",
             "name": "KubeLinter",
             "description": "Static analysis tool that checks Kubernetes YAML files and Helm charts for misconfigurations",
             "groups": [
@@ -240,6 +246,7 @@
         },
         {
             "id": "hcledit",
+            "version_command": "hcledit version",
             "name": "hcledit",
             "description": "A command line editor for HCL",
             "groups": [
@@ -259,6 +266,7 @@
         },
         {
             "id": "terraform-docs",
+            "version_command": "terraform-docs version",
             "name": "terraform-docs",
             "description": "Generate documentation from Terraform modules",
             "groups": [
@@ -386,6 +394,7 @@
         },
         {
             "id": "opentofu",
+            "version_command": "tofu --version",
             "name": "OpenTofu",
             "description": "Open-source fork of Terraform \u2014 community-governed drop-in replacement",
             "groups": [
@@ -519,6 +528,7 @@
         },
         {
             "id": "smartgit",
+            "version_command": "",
             "name": "SmartGit",
             "description": "Feature-rich Git GUI client with visual diff and merge tool",
             "groups": [
@@ -781,6 +791,7 @@
         },
         {
             "id": "zig",
+            "version_command": "zig version",
             "name": "Zig",
             "description": "General-purpose programming language and toolchain",
             "groups": [
@@ -803,6 +814,7 @@
         },
         {
             "id": "go",
+            "version_command": "go version",
             "name": "Go",
             "description": "Open source programming language by Google",
             "groups": [
@@ -828,6 +840,7 @@
         },
         {
             "id": "rust",
+            "version_command": "rustc --version",
             "name": "Rust",
             "description": "Systems programming language focused on safety, speed, and concurrency",
             "groups": [
@@ -988,6 +1001,290 @@
                 "type": "github_release",
                 "url_template": "https://github.com/open-cli-collective/atlassian-cli/releases/download/cfl-v{version}/cfl_{version}_{os}_{arch}.tar.gz",
                 "binary_in_archive": "cfl"
+            }
+        },
+        {
+            "id": "kubectx",
+            "version_command": "",
+            "name": "kubectx",
+            "description": "Switch between Kubernetes contexts quickly",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://github.com/ahmetb/kubectx",
+            "brew_formula": "kubectx",
+            "version_source": {
+                "type": "github_release",
+                "repo": "ahmetb/kubectx"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/ahmetb/kubectx/releases/download/v{version}/kubectx_v{version}_{os}_{arch_alt}.tar.gz",
+                "binary_in_archive": "kubectx"
+            }
+        },
+        {
+            "id": "stern",
+            "name": "stern",
+            "description": "Multi-pod and container log tailing for Kubernetes",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://github.com/stern/stern",
+            "brew_formula": "stern",
+            "version_source": {
+                "type": "github_release",
+                "repo": "stern/stern"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/stern/stern/releases/download/v{version}/stern_{version}_{os}_{arch}.tar.gz",
+                "binary_in_archive": "stern"
+            }
+        },
+        {
+            "id": "flux",
+            "name": "Flux",
+            "description": "GitOps toolkit for Kubernetes continuous delivery",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://fluxcd.io",
+            "brew_formula": "fluxcd/tap/flux",
+            "version_source": {
+                "type": "github_release",
+                "repo": "fluxcd/flux2"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/fluxcd/flux2/releases/download/v{version}/flux_{version}_{os}_{arch}.tar.gz",
+                "binary_in_archive": "flux"
+            }
+        },
+        {
+            "id": "kustomize",
+            "version_command": "kustomize version",
+            "name": "Kustomize",
+            "description": "Template-free customization of Kubernetes manifests",
+            "groups": [
+                "k8s"
+            ],
+            "homepage": "https://kustomize.io",
+            "brew_formula": "kustomize",
+            "version_source": {
+                "type": "github_release",
+                "repo": "kubernetes-sigs/kustomize",
+                "filter": "kustomize/",
+                "strip_prefix": "kustomize/v"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv{version}/kustomize_v{version}_{os}_{arch}.tar.gz",
+                "binary_in_archive": "kustomize"
+            }
+        },
+        {
+            "id": "sops",
+            "version_command": "sops --version --disable-version-check",
+            "name": "SOPS",
+            "description": "Encrypt secrets in git with age, KMS, GCP KMS, Azure Key Vault or PGP",
+            "groups": [
+                "security"
+            ],
+            "homepage": "https://getsops.io",
+            "brew_formula": "sops",
+            "version_source": {
+                "type": "github_release",
+                "repo": "getsops/sops"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/getsops/sops/releases/download/v{version}/sops-v{version}.{os}.{arch}"
+            }
+        },
+        {
+            "id": "age",
+            "name": "age",
+            "description": "Simple, modern and secure file encryption",
+            "groups": [
+                "security"
+            ],
+            "homepage": "https://github.com/FiloSottile/age",
+            "brew_formula": "age",
+            "version_source": {
+                "type": "github_release",
+                "repo": "FiloSottile/age"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/FiloSottile/age/releases/download/v{version}/age-v{version}-{os}-{arch}.tar.gz",
+                "binary_in_archive": "age/age"
+            }
+        },
+        {
+            "id": "cosign",
+            "version_command": "cosign version",
+            "name": "Cosign",
+            "description": "Sign and verify container images and other artifacts",
+            "groups": [
+                "security",
+                "containers"
+            ],
+            "homepage": "https://docs.sigstore.dev/cosign/",
+            "brew_formula": "cosign",
+            "version_source": {
+                "type": "github_release",
+                "repo": "sigstore/cosign"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/sigstore/cosign/releases/download/v{version}/cosign-{os}-{arch}"
+            }
+        },
+        {
+            "id": "gitleaks",
+            "version_command": "gitleaks version",
+            "name": "Gitleaks",
+            "description": "Detect hardcoded secrets in git repos and files",
+            "groups": [
+                "security"
+            ],
+            "homepage": "https://gitleaks.io",
+            "brew_formula": "gitleaks",
+            "version_source": {
+                "type": "github_release",
+                "repo": "gitleaks/gitleaks"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/gitleaks/gitleaks/releases/download/v{version}/gitleaks_{version}_{os}_{arch_x64}.tar.gz",
+                "binary_in_archive": "gitleaks"
+            }
+        },
+        {
+            "id": "hadolint",
+            "name": "Hadolint",
+            "description": "Dockerfile linter that checks for best practices",
+            "groups": [
+                "containers",
+                "security"
+            ],
+            "homepage": "https://github.com/hadolint/hadolint",
+            "brew_formula": "hadolint",
+            "version_source": {
+                "type": "github_release",
+                "repo": "hadolint/hadolint"
+            },
+            "strategy": {
+                "type": "direct_binary",
+                "url_template": "https://github.com/hadolint/hadolint/releases/download/v{version}/hadolint-linux-{arch_alt}"
+            }
+        },
+        {
+            "id": "shellcheck",
+            "name": "ShellCheck",
+            "description": "Static analysis tool for shell scripts",
+            "groups": [
+                "dev"
+            ],
+            "homepage": "https://www.shellcheck.net",
+            "brew_formula": "shellcheck",
+            "version_source": {
+                "type": "github_release",
+                "repo": "koalaman/shellcheck"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/koalaman/shellcheck/releases/download/v{version}/shellcheck-v{version}.{os}.{arch_uname}.tar.gz",
+                "binary_in_archive": "shellcheck-v{version}/shellcheck"
+            }
+        },
+        {
+            "id": "fzf",
+            "name": "fzf",
+            "description": "General-purpose command-line fuzzy finder",
+            "groups": [
+                "terminal",
+                "utils"
+            ],
+            "homepage": "https://github.com/junegunn/fzf",
+            "brew_formula": "fzf",
+            "version_source": {
+                "type": "github_release",
+                "repo": "junegunn/fzf"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/junegunn/fzf/releases/download/v{version}/fzf-{version}-{os}_{arch}.tar.gz",
+                "binary_in_archive": "fzf"
+            }
+        },
+        {
+            "id": "rg",
+            "name": "ripgrep",
+            "description": "Fast recursive grep that respects .gitignore",
+            "groups": [
+                "terminal",
+                "utils"
+            ],
+            "homepage": "https://github.com/BurntSushi/ripgrep",
+            "brew_formula": "ripgrep",
+            "aliases": [
+                "ripgrep"
+            ],
+            "version_source": {
+                "type": "github_release",
+                "repo": "BurntSushi/ripgrep"
+            },
+            "strategy": {
+                "type": "github_release",
+                "url_template": "https://github.com/BurntSushi/ripgrep/releases/download/{version}/ripgrep-{version}-{arch_uname}-unknown-linux-musl.tar.gz",
+                "binary_in_archive": "ripgrep-{version}-{arch_uname}-unknown-linux-musl/rg"
+            }
+        },
+        {
+            "id": "node",
+            "name": "Node.js",
+            "description": "JavaScript runtime (LTS), required by npm-based tools such as wrangler",
+            "groups": [
+                "dev"
+            ],
+            "homepage": "https://nodejs.org",
+            "version_source": {
+                "type": "node_lts"
+            },
+            "strategy": {
+                "type": "tarball",
+                "url_template": "https://nodejs.org/dist/v{version}/node-v{version}-{os}-{arch_x64}.tar.xz",
+                "strip_components": 0,
+                "sdk_dir": "node-v{version}-{os}-{arch_x64}",
+                "sdk_name": "node",
+                "symlinks": [
+                    "bin/node",
+                    "bin/npm",
+                    "bin/npx"
+                ]
+            }
+        },
+        {
+            "id": "wrangler",
+            "name": "Wrangler",
+            "description": "Cloudflare developer platform CLI for Workers, Pages, R2, KV and D1",
+            "groups": [
+                "cloud",
+                "dev"
+            ],
+            "homepage": "https://developers.cloudflare.com/workers/wrangler/",
+            "version_source": {
+                "type": "npm",
+                "package": "wrangler"
+            },
+            "strategy": {
+                "type": "npm",
+                "package": "wrangler",
+                "install_dir_rel": "~/.local/opt/wrangler",
+                "binary_name": "wrangler",
+                "min_node_major": 20
             }
         }
     ]

@@ -254,6 +254,17 @@ impl PackageManager {
         }
     }
 
+    /// Command to upgrade an already-installed package, for package managers where
+    /// `install_args` does not do that. dnf5 reports "Nothing to do" (exit 0) when
+    /// asked to `install` a package that is already present, even if a newer version
+    /// is available. `None` means `install_args` already upgrades.
+    pub fn upgrade_args(self) -> Option<&'static [&'static str]> {
+        match self {
+            PackageManager::Dnf => Some(&["sudo", "dnf", "upgrade", "-y"]),
+            _ => None,
+        }
+    }
+
     /// The version of `pkg` currently installed via this package manager, if any.
     /// Returns `None` on any failure (command missing, package not installed, output
     /// we can't parse) rather than erroring - callers should fall back gracefully.
@@ -277,7 +288,14 @@ impl PackageManager {
             }
             PackageManager::Dnf | PackageManager::Yum | PackageManager::Zypper => {
                 let out = Command::new("rpm")
-                    .args(["-q", "--qf", "%{VERSION}-%{RELEASE}", pkg])
+                    // Include the epoch when there is one, matching how dnf/zypper print
+                    // available versions ("5:6.2.0-1.fc45"), so the two compare equal.
+                    .args([
+                        "-q",
+                        "--qf",
+                        "%|EPOCH?{%{EPOCH}:}|%{VERSION}-%{RELEASE}",
+                        pkg,
+                    ])
                     .output()
                     .ok()?;
                 if !out.status.success() {
@@ -425,6 +443,15 @@ mod tests {
     fn arch_suffix_names() {
         assert_eq!(Arch::X86_64.suffix_name(), "");
         assert_eq!(Arch::Aarch64.suffix_name(), "_arm64");
+    }
+
+    #[test]
+    fn dnf_upgrades_installed_packages_with_upgrade_not_install() {
+        assert_eq!(
+            PackageManager::Dnf.upgrade_args(),
+            Some(&["sudo", "dnf", "upgrade", "-y"][..])
+        );
+        assert_eq!(PackageManager::Apt.upgrade_args(), None);
     }
 
     #[test]

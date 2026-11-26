@@ -58,7 +58,7 @@ fn uninstall_one_inner(id: &str, state: &mut State, tools: &[Tool]) -> anyhow::R
         // Remove any extra symlinks (kubectl plugin names, etc.). A broken
         // symlink reports `exists() == false`, so check symlink metadata.
         if let Some(tool) = tools.iter().find(|t| t.id == id) {
-            for link_name in tool.strategy.extra_symlinks() {
+            for link_name in tool.strategy.extra_bin_links() {
                 let link_path = local_bin.join(link_name);
                 if link_path.symlink_metadata().is_ok() {
                     let _ = std::fs::remove_file(&link_path);
