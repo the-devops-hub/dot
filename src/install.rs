@@ -248,7 +248,13 @@ fn execute_system_package(
         anyhow::anyhow!(crate::error::DotError::NoPackageForManager)
     })?;
 
-    let mut args: Vec<&str> = pm.install_args().to_vec();
+    // For an already-installed package some managers (dnf5) need `upgrade`, as
+    // `install` quietly does nothing and still exits 0.
+    let base_args = match pm.upgrade_args() {
+        Some(upgrade) if pm.installed_version(pkg_name).is_some() => upgrade,
+        _ => pm.install_args(),
+    };
+    let mut args: Vec<&str> = base_args.to_vec();
     args.push(pkg_name);
 
     let cmd_name = pm.command().unwrap_or("unknown");
