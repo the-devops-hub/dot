@@ -661,20 +661,66 @@ impl Tool {
     /// command if it runs and parses, otherwise the version recorded in state.
     pub fn installed_version(&self, recorded: Option<&str>) -> Option<String> {
         if let Some(cmd) = self.effective_version_command() {
-            let out = std::process::Command::new("sh")
-                .arg("-c")
-                .arg(cmd)
-                .stdin(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .output()
-                .ok()
-                .filter(|o| o.status.success());
-            if let Some(v) = out.and_then(|o| parse_version(&String::from_utf8_lossy(&o.stdout))) {
+            if let Some(v) = run_version_command(&cmd, VERSION_COMMAND_TIMEOUT) {
                 return Some(v);
             }
         }
         recorded.map(str::to_string)
     }
+}
+
+/// How long a version command may run before it is killed and the recorded
+/// version is used instead (a hung or prompting command must not block `dot`).
+const VERSION_COMMAND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Run `cmd` via `sh -c` and parse a version from its stdout. Returns `None` if it
+/// fails, prints nothing parseable, or does not finish within `timeout` (in which
+/// case the whole process group is killed).
+fn run_version_command(cmd: &str, timeout: std::time::Duration) -> Option<String> {
+    use std::io::Read;
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
+
+    let mut child = Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        // Own process group, so a timeout can kill the command and its children.
+        .process_group(0)
+        .spawn()
+        .ok()?;
+    let mut stdout = child.stdout.take()?;
+    // Read on a thread so a chatty command cannot fill the pipe and stall `wait`.
+    let reader = std::thread::spawn(move || {
+        let mut buf = String::new();
+        let _ = stdout.read_to_string(&mut buf);
+        buf
+    });
+
+    let start = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if start.elapsed() < timeout => {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            _ => {
+                let _ = Command::new("kill")
+                    .args(["-KILL", "--", &format!("-{}", child.id())])
+                    .stderr(Stdio::null())
+                    .status();
+                let _ = child.kill();
+                let _ = child.wait();
+                // The reader thread ends once the killed group closes the pipe.
+                return None;
+            }
+        }
+    };
+    let out = reader.join().ok()?;
+    status.success().then(|| parse_version(&out)).flatten()
 }
 
 /// Extract the first dotted-number version from command output, e.g. "2.1.5" from
@@ -806,6 +852,37 @@ mod tests {
         let vs: VersionSource =
             serde_json::from_str(r#"{"type":"npm","package":"wrangler"}"#).unwrap();
         assert!(matches!(vs, VersionSource::Npm(_)));
+    }
+
+    #[test]
+    fn version_command_times_out_and_kills_slow_commands() {
+        use std::time::{Duration, Instant};
+        let start = Instant::now();
+        assert_eq!(
+            run_version_command("sleep 30", Duration::from_millis(200)),
+            None
+        );
+        assert!(start.elapsed() < Duration::from_secs(5));
+        // A slow command with a child process is killed as a group too.
+        let start = Instant::now();
+        assert_eq!(
+            run_version_command("sleep 30 && echo 1.2.3", Duration::from_millis(200)),
+            None
+        );
+        assert!(start.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn version_command_returns_version_when_fast() {
+        use std::time::Duration;
+        assert_eq!(
+            run_version_command("echo tool 1.2.3", Duration::from_secs(5)).as_deref(),
+            Some("1.2.3")
+        );
+        assert_eq!(
+            run_version_command("echo 1.2.3; exit 1", Duration::from_secs(5)),
+            None
+        );
     }
 
     #[test]
