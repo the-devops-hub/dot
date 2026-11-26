@@ -287,6 +287,80 @@ fn python3_install_hint() -> &'static str {
     }
 }
 
+fn python_devel_hint() -> &'static str {
+    use crate::platform::PackageManager;
+    match PackageManager::detect() {
+        PackageManager::Apt => "sudo apt install python3-dev build-essential",
+        PackageManager::Dnf | PackageManager::Yum => "sudo dnf install python3-devel gcc",
+        PackageManager::Pacman => "sudo pacman -S base-devel",
+        PackageManager::Apk => "sudo apk add python3-dev build-base",
+        PackageManager::Zypper => "sudo zypper install python3-devel gcc",
+        PackageManager::Brew => "xcode-select --install",
+        _ => "install the Python development headers and a C compiler",
+    }
+}
+
+/// `major.minor` from a venv's `pyvenv.cfg` (`version = 3.14.2`).
+fn venv_cfg_python(cfg: &str) -> Option<String> {
+    let v = cfg.lines().find_map(|l| {
+        l.strip_prefix("version")
+            .and_then(|r| r.trim_start().strip_prefix('='))
+    })?;
+    let mut parts = v.trim().split('.');
+    Some(format!("{}.{}", parts.next()?, parts.next()?))
+}
+
+/// `major.minor` of the `python3` on PATH.
+fn system_python_version() -> Option<String> {
+    let out = std::process::Command::new("python3")
+        .args(["-c", "import sys; print('%d.%d' % sys.version_info[:2])"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// True if `site_packages` holds an installed distribution of `package`.
+fn has_dist(site_packages: &Path, package: &str) -> bool {
+    // dist-info directories use the normalised name: lowercase, `-`/`.` as `_`.
+    let prefix = format!("{}-", package.to_lowercase().replace(['-', '.'], "_"));
+    std::fs::read_dir(site_packages)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|e| {
+            let name = e
+                .file_name()
+                .to_string_lossy()
+                .to_lowercase()
+                .replace(['-', '.'], "_");
+            e.file_name().to_string_lossy().ends_with(".dist-info")
+                && name.starts_with(&prefix.replace('-', "_"))
+        })
+}
+
+/// True when an existing venv was built for a different Python than the one on
+/// PATH now (after an OS upgrade). Its installed packages are invisible to the new
+/// interpreter, so it has to be rebuilt rather than upgraded in place.
+fn venv_is_stale(install_dir: &Path, system_python: &str, package: &str) -> bool {
+    let Ok(cfg) = std::fs::read_to_string(install_dir.join("pyvenv.cfg")) else {
+        return false; // not a venv (or nothing there yet): nothing to rebuild
+    };
+    if venv_cfg_python(&cfg).is_some_and(|v| v != system_python) {
+        return true;
+    }
+    // An earlier run may already have rewritten pyvenv.cfg for the new Python while
+    // the tool itself stayed behind in lib/python<old>/site-packages.
+    let lib = install_dir.join("lib");
+    let current = lib.join(format!("python{system_python}"));
+    !has_dist(&current.join("site-packages"), package)
+        && std::fs::read_dir(&lib)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|e| e.path() != current && has_dist(&e.path().join("site-packages"), package))
+}
+
 fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> anyhow::Result<()> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/root"));
     let install_dir = if s.install_dir_rel.starts_with("~/") {
@@ -298,6 +372,16 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
     if crate::util::find_in_path("python3").is_none() {
         output::print_detail(&format!("python3 is required: {}", python3_install_hint()));
         anyhow::bail!(crate::error::DotError::PythonNotFound);
+    }
+
+    if let Some(py) = system_python_version() {
+        if venv_is_stale(&install_dir, &py, &s.package) {
+            output::print_detail(&format!(
+                "venv was built for a different Python than {py}: rebuilding it"
+            ));
+            std::fs::remove_dir_all(&install_dir)
+                .with_context(|| format!("remove stale venv {}", install_dir.display()))?;
+        }
     }
 
     output::print_step_start("Venv", install_dir.to_str().unwrap_or(""));
@@ -320,6 +404,10 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
         .status()
         .context("spawn pip install")?;
     if !pip_status.success() {
+        output::print_detail(&format!(
+            "if a package failed to build (e.g. 'Python.h: No such file'), install the Python headers and a C compiler: {}",
+            python_devel_hint()
+        ));
         anyhow::bail!(crate::error::DotError::PipInstallFailed);
     }
 
@@ -582,6 +670,37 @@ fn execute_script_installer(
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn venv_cfg_python_reads_major_minor() {
+        let cfg = "home = /usr/bin\ninclude-system-site-packages = false\nversion = 3.14.2\n";
+        assert_eq!(venv_cfg_python(cfg).as_deref(), Some("3.14"));
+        assert_eq!(venv_cfg_python("home = /usr/bin\n"), None);
+    }
+
+    #[test]
+    fn venv_is_stale_detects_python_upgrade() {
+        let tmp = TempDir::new().unwrap();
+        let venv = tmp.path().join("v");
+        // Not a venv yet: never stale.
+        assert!(!venv_is_stale(&venv, "3.15", "oci-cli"));
+        let old = venv.join("lib/python3.14/site-packages");
+        std::fs::create_dir_all(old.join("oci_cli-3.97.1.dist-info")).unwrap();
+        std::fs::create_dir_all(old.join("pip-26.1.2.dist-info")).unwrap();
+        std::fs::write(venv.join("pyvenv.cfg"), "version = 3.14.2\n").unwrap();
+        // Same Python: fine.
+        assert!(!venv_is_stale(&venv, "3.14", "oci-cli"));
+        // Config says an older Python than PATH has.
+        assert!(venv_is_stale(&venv, "3.15", "oci-cli"));
+        // Config already rewritten, a fresh venv holds only pip, the tool is stranded.
+        std::fs::write(venv.join("pyvenv.cfg"), "version = 3.15.2\n").unwrap();
+        let new = venv.join("lib/python3.15/site-packages");
+        std::fs::create_dir_all(new.join("pip-26.1.2.dist-info")).unwrap();
+        assert!(venv_is_stale(&venv, "3.15", "oci-cli"));
+        // Once the tool is installed for the current Python it is healthy again.
+        std::fs::create_dir_all(new.join("oci_cli-3.97.1.dist-info")).unwrap();
+        assert!(!venv_is_stale(&venv, "3.15", "oci-cli"));
+    }
 
     #[test]
     fn node_major_parses_versions() {
