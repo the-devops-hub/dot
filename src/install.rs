@@ -361,6 +361,46 @@ fn venv_is_stale(install_dir: &Path, system_python: &str, package: &str) -> bool
             .any(|e| e.path() != current && has_dist(&e.path().join("site-packages"), package))
 }
 
+/// The few lines of pip output that explain a failure: error lines, de-duplicated,
+/// or the last lines when none look like errors.
+fn summarize_pip_failure(text: &str) -> Vec<String> {
+    let mut errors: Vec<String> = Vec::new();
+    for line in text.lines().map(str::trim) {
+        let lower = line.to_lowercase();
+        let interesting = lower.contains("fatal error")
+            || lower.starts_with("error:")
+            || lower.starts_with("error ")
+            || lower.contains("failed to build")
+            || lower.contains("no matching distribution")
+            || lower.contains("could not find a version");
+        if interesting && !errors.iter().any(|e| e == line) {
+            errors.push(line.to_string());
+        }
+    }
+    if errors.is_empty() {
+        let tail: Vec<&str> = text
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect();
+        return tail[tail.len().saturating_sub(8)..]
+            .iter()
+            .map(|l| l.to_string())
+            .collect();
+    }
+    errors.truncate(8);
+    errors
+}
+
+/// Save the full pip output under the user's cache dir so it can be inspected.
+fn write_pip_log(tool_id: &str, text: &str) -> Option<PathBuf> {
+    let dir = dirs::cache_dir()?.join("dot");
+    std::fs::create_dir_all(&dir).ok()?;
+    let path = dir.join(format!("{tool_id}-pip.log"));
+    std::fs::write(&path, text).ok()?;
+    Some(path)
+}
+
 fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> anyhow::Result<()> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/root"));
     let install_dir = if s.install_dir_rel.starts_with("~/") {
@@ -399,15 +439,43 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
 
     let pip = install_dir.join("bin/pip");
     output::print_step_start("pip install", &s.package);
-    let pip_status = std::process::Command::new(&pip)
-        .args(["install", "--upgrade", &s.package])
-        .status()
+    // Capture pip's output: it can run to hundreds of lines (compiler invocations,
+    // build logs) that bury the actual error. Show a short summary on failure and
+    // keep the full log on disk.
+    let pip_out = std::process::Command::new(&pip)
+        .args([
+            "install",
+            "--upgrade",
+            "--disable-pip-version-check",
+            "--no-input",
+            &s.package,
+        ])
+        .stdin(std::process::Stdio::null())
+        .output()
         .context("spawn pip install")?;
-    if !pip_status.success() {
-        output::print_detail(&format!(
-            "if a package failed to build (e.g. 'Python.h: No such file'), install the Python headers and a C compiler: {}",
-            python_devel_hint()
-        ));
+    if !pip_out.status.success() {
+        let text = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&pip_out.stdout),
+            String::from_utf8_lossy(&pip_out.stderr)
+        );
+        output::print_detail("pip install failed:");
+        for line in summarize_pip_failure(&text) {
+            output::print_detail(&format!("  {line}"));
+        }
+        if let Some(log) = write_pip_log(&ctx.tool_id, &text) {
+            output::print_detail(&format!("full pip output: {}", log.display()));
+        }
+        let lower = text.to_lowercase();
+        if lower.contains("failed to build")
+            || lower.contains("failed building wheel")
+            || lower.contains("fatal error")
+        {
+            output::print_detail(&format!(
+                "a package failed to build: install the Python headers and a C compiler: {}",
+                python_devel_hint()
+            ));
+        }
         anyhow::bail!(crate::error::DotError::PipInstallFailed);
     }
 
@@ -670,6 +738,19 @@ fn execute_script_installer(
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn summarize_pip_failure_picks_error_lines() {
+        let text = "Collecting x\n  gcc -O3 -c foo.c\n      src/_c.c:28:10: fatal error: Python.h: No such file or directory\n      src/_c.c:28:10: fatal error: Python.h: No such file or directory\n  ERROR: Failed building wheel for crc32c\nFailed to build crc32c python-pkcs11\n";
+        let got = summarize_pip_failure(text);
+        assert_eq!(got.len(), 3);
+        assert!(got[0].contains("Python.h"));
+        assert!(got[1].starts_with("ERROR:"));
+        assert!(got[2].starts_with("Failed to build"));
+        // No recognisable error: fall back to the last lines.
+        let got = summarize_pip_failure("a\nb\nc\n");
+        assert_eq!(got, ["a", "b", "c"]);
+    }
 
     #[test]
     fn venv_cfg_python_reads_major_minor() {
