@@ -13,6 +13,9 @@ pub struct InstallContext {
     pub arch: Arch,
     pub bin_dir: PathBuf,
     pub tmp_dir: PathBuf,
+    /// Reinstall from scratch: set by `dot install --force` (not by `dot upgrade
+    /// --force`, which only overrides pins). Venv-based tools wipe their venv.
+    pub clean: bool,
 }
 
 impl InstallContext {
@@ -47,6 +50,7 @@ pub fn execute(
         InstallStrategy::HashicorpRelease(s) => execute_hashicorp(s, ctx),
         InstallStrategy::SystemPackage(s) => execute_system_package(s, ctx),
         InstallStrategy::PipVenv(s) => execute_pip_venv(s, ctx),
+        InstallStrategy::Npm(s) => execute_npm(s, ctx),
         InstallStrategy::Tarball(s) => execute_tarball(s, ctx),
         InstallStrategy::ScriptInstaller(s) => execute_script_installer(s, ctx),
     }
@@ -247,7 +251,13 @@ fn execute_system_package(
         anyhow::anyhow!(crate::error::DotError::NoPackageForManager)
     })?;
 
-    let mut args: Vec<&str> = pm.install_args().to_vec();
+    // For an already-installed package some managers (dnf5) need `upgrade`, as
+    // `install` quietly does nothing and still exits 0.
+    let base_args = match pm.upgrade_args() {
+        Some(upgrade) if pm.installed_version(pkg_name).is_some() => upgrade,
+        _ => pm.install_args(),
+    };
+    let mut args: Vec<&str> = base_args.to_vec();
     args.push(pkg_name);
 
     let cmd_name = pm.command().unwrap_or("unknown");
@@ -280,6 +290,130 @@ fn python3_install_hint() -> &'static str {
     }
 }
 
+fn python_devel_hint() -> &'static str {
+    use crate::platform::PackageManager;
+    match PackageManager::detect() {
+        PackageManager::Apt => "sudo apt install python3-dev build-essential",
+        PackageManager::Dnf | PackageManager::Yum => "sudo dnf install python3-devel gcc",
+        PackageManager::Pacman => "sudo pacman -S base-devel",
+        PackageManager::Apk => "sudo apk add python3-dev build-base",
+        PackageManager::Zypper => "sudo zypper install python3-devel gcc",
+        PackageManager::Brew => "xcode-select --install",
+        _ => "install the Python development headers and a C compiler",
+    }
+}
+
+/// `major.minor` from a venv's `pyvenv.cfg` (`version = 3.14.2`).
+fn venv_cfg_python(cfg: &str) -> Option<String> {
+    let v = cfg.lines().find_map(|l| {
+        l.strip_prefix("version")
+            .and_then(|r| r.trim_start().strip_prefix('='))
+    })?;
+    let mut parts = v.trim().split('.');
+    Some(format!("{}.{}", parts.next()?, parts.next()?))
+}
+
+/// `major.minor` of the `python3` on PATH.
+fn system_python_version() -> Option<String> {
+    let out = std::process::Command::new("python3")
+        .args(["-c", "import sys; print('%d.%d' % sys.version_info[:2])"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())?;
+    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// True if `site_packages` holds an installed distribution of `package`.
+fn has_dist(site_packages: &Path, package: &str) -> bool {
+    // dist-info directories use the normalised name: lowercase, `-`/`.` as `_`.
+    let prefix = format!("{}-", package.to_lowercase().replace(['-', '.'], "_"));
+    std::fs::read_dir(site_packages)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|e| {
+            let name = e
+                .file_name()
+                .to_string_lossy()
+                .to_lowercase()
+                .replace(['-', '.'], "_");
+            e.file_name().to_string_lossy().ends_with(".dist-info")
+                && name.starts_with(&prefix.replace('-', "_"))
+        })
+}
+
+/// True when an existing venv was built for a different Python than the one on
+/// PATH now (after an OS upgrade). Its installed packages are invisible to the new
+/// interpreter, so it has to be rebuilt rather than upgraded in place.
+fn venv_is_stale(install_dir: &Path, system_python: &str, package: &str) -> bool {
+    let Ok(cfg) = std::fs::read_to_string(install_dir.join("pyvenv.cfg")) else {
+        return false; // not a venv (or nothing there yet): nothing to rebuild
+    };
+    if venv_cfg_python(&cfg).is_some_and(|v| v != system_python) {
+        return true;
+    }
+    // An earlier run may already have rewritten pyvenv.cfg for the new Python while
+    // the tool itself stayed behind in lib/python<old>/site-packages.
+    let lib = install_dir.join("lib");
+    let current = lib.join(format!("python{system_python}"));
+    !has_dist(&current.join("site-packages"), package)
+        && std::fs::read_dir(&lib)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|e| e.path() != current && has_dist(&e.path().join("site-packages"), package))
+}
+
+/// The few lines of pip output that explain a failure: error lines, de-duplicated,
+/// or the last lines when none look like errors.
+fn summarize_pip_failure(text: &str) -> Vec<String> {
+    let mut errors: Vec<String> = Vec::new();
+    for line in text.lines().map(str::trim) {
+        let lower = line.to_lowercase();
+        let interesting = lower.contains("fatal error")
+            || lower.starts_with("error:")
+            || lower.starts_with("error ")
+            || lower.contains("failed to build")
+            || lower.contains("no matching distribution")
+            || lower.contains("could not find a version");
+        if interesting && !errors.iter().any(|e| e == line) {
+            errors.push(line.to_string());
+        }
+    }
+    if errors.is_empty() {
+        let tail: Vec<&str> = text
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect();
+        return tail[tail.len().saturating_sub(8)..]
+            .iter()
+            .map(|l| l.to_string())
+            .collect();
+    }
+    errors.truncate(8);
+    errors
+}
+
+/// Save the full pip output under the user's cache dir so it can be inspected.
+fn write_pip_log(tool_id: &str, text: &str) -> Option<PathBuf> {
+    let dir = dirs::cache_dir()?.join("dot");
+    std::fs::create_dir_all(&dir).ok()?;
+    let path = dir.join(format!("{tool_id}-pip.log"));
+    std::fs::write(&path, text).ok()?;
+    Some(path)
+}
+
+/// Delete a venv so it can be rebuilt. Refuses anything that is not a venv (no
+/// `pyvenv.cfg`), so a wrong `install_dir_rel` can never wipe an arbitrary directory.
+fn wipe_venv(install_dir: &Path) -> anyhow::Result<()> {
+    if install_dir.join("pyvenv.cfg").is_file() {
+        std::fs::remove_dir_all(install_dir)
+            .with_context(|| format!("remove venv {}", install_dir.display()))?;
+    }
+    Ok(())
+}
+
 fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> anyhow::Result<()> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/root"));
     let install_dir = if s.install_dir_rel.starts_with("~/") {
@@ -291,6 +425,17 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
     if crate::util::find_in_path("python3").is_none() {
         output::print_detail(&format!("python3 is required: {}", python3_install_hint()));
         anyhow::bail!(crate::error::DotError::PythonNotFound);
+    }
+
+    let stale =
+        system_python_version().is_some_and(|py| venv_is_stale(&install_dir, &py, &s.package));
+    if ctx.clean || stale {
+        output::print_detail(if stale {
+            "venv was built for a different Python: rebuilding it"
+        } else {
+            "--force: rebuilding the venv from scratch"
+        });
+        wipe_venv(&install_dir)?;
     }
 
     output::print_step_start("Venv", install_dir.to_str().unwrap_or(""));
@@ -308,11 +453,43 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
 
     let pip = install_dir.join("bin/pip");
     output::print_step_start("pip install", &s.package);
-    let pip_status = std::process::Command::new(&pip)
-        .args(["install", "--upgrade", &s.package])
-        .status()
+    // Capture pip's output: it can run to hundreds of lines (compiler invocations,
+    // build logs) that bury the actual error. Show a short summary on failure and
+    // keep the full log on disk.
+    let pip_out = std::process::Command::new(&pip)
+        .args([
+            "install",
+            "--upgrade",
+            "--disable-pip-version-check",
+            "--no-input",
+            &s.package,
+        ])
+        .stdin(std::process::Stdio::null())
+        .output()
         .context("spawn pip install")?;
-    if !pip_status.success() {
+    if !pip_out.status.success() {
+        let text = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&pip_out.stdout),
+            String::from_utf8_lossy(&pip_out.stderr)
+        );
+        output::print_detail("pip install failed:");
+        for line in summarize_pip_failure(&text) {
+            output::print_detail(&format!("  {line}"));
+        }
+        if let Some(log) = write_pip_log(&ctx.tool_id, &text) {
+            output::print_detail(&format!("full pip output: {}", log.display()));
+        }
+        let lower = text.to_lowercase();
+        if lower.contains("failed to build")
+            || lower.contains("failed building wheel")
+            || lower.contains("fatal error")
+        {
+            output::print_detail(&format!(
+                "a package failed to build: install the Python headers and a C compiler: {}",
+                python_devel_hint()
+            ));
+        }
         anyhow::bail!(crate::error::DotError::PipInstallFailed);
     }
 
@@ -332,6 +509,97 @@ fn execute_pip_venv(s: &crate::tool::PipVenvStrategy, ctx: &InstallContext) -> a
         let _ = std::fs::remove_file(&extra_dst);
         #[cfg(unix)]
         std::os::unix::fs::symlink(&extra_src, &extra_dst)?;
+    }
+    Ok(())
+}
+
+fn node_install_hint() -> &'static str {
+    use crate::platform::PackageManager;
+    match PackageManager::detect() {
+        PackageManager::Apt => "sudo apt install nodejs npm",
+        PackageManager::Dnf | PackageManager::Yum => "sudo dnf install nodejs npm",
+        PackageManager::Pacman => "sudo pacman -S nodejs npm",
+        PackageManager::Apk => "sudo apk add nodejs npm",
+        PackageManager::Brew => "brew install node",
+        _ => "install Node.js from https://nodejs.org",
+    }
+}
+
+/// Major version from `node --version` output such as "v20.11.1".
+fn node_major(version: &str) -> Option<u32> {
+    version
+        .trim()
+        .trim_start_matches('v')
+        .split('.')
+        .next()?
+        .parse()
+        .ok()
+}
+
+fn execute_npm(s: &crate::tool::NpmStrategy, ctx: &InstallContext) -> anyhow::Result<()> {
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/root"));
+    let install_dir = if s.install_dir_rel.starts_with("~/") {
+        home.join(&s.install_dir_rel[2..])
+    } else {
+        PathBuf::from(&s.install_dir_rel)
+    };
+
+    if crate::util::find_in_path("node").is_none() || crate::util::find_in_path("npm").is_none() {
+        output::print_detail(&format!(
+            "node and npm are required: {} (or: dot install node)",
+            node_install_hint()
+        ));
+        anyhow::bail!(crate::error::DotError::NodeNotFound);
+    }
+
+    if let Some(required) = s.min_node_major {
+        let out = std::process::Command::new("node")
+            .arg("--version")
+            .output()
+            .context("run node --version")?;
+        if !out.status.success() {
+            output::print_detail("`node --version` failed: is node on PATH working?");
+            anyhow::bail!(crate::error::DotError::NodeNotFound);
+        }
+        let found = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        // An unparseable version is let through: npm itself will still complain if
+        // the package really cannot run.
+        if node_major(&found).is_some_and(|m| m < required) {
+            output::print_detail("upgrade with: dot install node --force");
+            anyhow::bail!(crate::error::DotError::NodeTooOld {
+                found: found.trim_start_matches('v').to_string(),
+                required,
+            });
+        }
+    }
+
+    std::fs::create_dir_all(&install_dir)?;
+    let spec = format!("{}@{}", s.package, ctx.version);
+    output::print_step_start("npm install", &spec);
+    let status = std::process::Command::new("npm")
+        .args(["install", "--prefix"])
+        .arg(&install_dir)
+        .args(["--no-fund", "--no-audit", "--loglevel=error", &spec])
+        .status()
+        .context("spawn npm install")?;
+    if !status.success() {
+        anyhow::bail!(crate::error::DotError::NpmInstallFailed);
+    }
+
+    std::fs::create_dir_all(&ctx.bin_dir)?;
+    let npm_bin = install_dir.join("node_modules/.bin");
+    for name in std::iter::once(&s.binary_name).chain(s.extra_binaries.iter()) {
+        let src = npm_bin.join(name);
+        if !src.exists() {
+            anyhow::bail!(
+                "npm package {} did not provide the '{name}' binary",
+                s.package
+            );
+        }
+        let dst = ctx.bin_dir.join(name);
+        let _ = std::fs::remove_file(&dst);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&src, &dst)?;
     }
     Ok(())
 }
@@ -484,6 +752,75 @@ fn execute_script_installer(
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn summarize_pip_failure_picks_error_lines() {
+        let text = "Collecting x\n  gcc -O3 -c foo.c\n      src/_c.c:28:10: fatal error: Python.h: No such file or directory\n      src/_c.c:28:10: fatal error: Python.h: No such file or directory\n  ERROR: Failed building wheel for crc32c\nFailed to build crc32c python-pkcs11\n";
+        let got = summarize_pip_failure(text);
+        assert_eq!(got.len(), 3);
+        assert!(got[0].contains("Python.h"));
+        assert!(got[1].starts_with("ERROR:"));
+        assert!(got[2].starts_with("Failed to build"));
+        // No recognisable error: fall back to the last lines.
+        let got = summarize_pip_failure("a\nb\nc\n");
+        assert_eq!(got, ["a", "b", "c"]);
+    }
+
+    #[test]
+    fn wipe_venv_only_removes_real_venvs() {
+        let tmp = TempDir::new().unwrap();
+        let venv = tmp.path().join("venv");
+        std::fs::create_dir_all(venv.join("lib")).unwrap();
+        std::fs::write(venv.join("pyvenv.cfg"), "version = 3.15.2\n").unwrap();
+        wipe_venv(&venv).unwrap();
+        assert!(!venv.exists());
+
+        let other = tmp.path().join("not-a-venv");
+        std::fs::create_dir_all(&other).unwrap();
+        std::fs::write(other.join("precious.txt"), "x").unwrap();
+        wipe_venv(&other).unwrap();
+        assert!(other.join("precious.txt").exists());
+        // Missing dir is fine.
+        wipe_venv(&tmp.path().join("missing")).unwrap();
+    }
+
+    #[test]
+    fn venv_cfg_python_reads_major_minor() {
+        let cfg = "home = /usr/bin\ninclude-system-site-packages = false\nversion = 3.14.2\n";
+        assert_eq!(venv_cfg_python(cfg).as_deref(), Some("3.14"));
+        assert_eq!(venv_cfg_python("home = /usr/bin\n"), None);
+    }
+
+    #[test]
+    fn venv_is_stale_detects_python_upgrade() {
+        let tmp = TempDir::new().unwrap();
+        let venv = tmp.path().join("v");
+        // Not a venv yet: never stale.
+        assert!(!venv_is_stale(&venv, "3.15", "oci-cli"));
+        let old = venv.join("lib/python3.14/site-packages");
+        std::fs::create_dir_all(old.join("oci_cli-3.97.1.dist-info")).unwrap();
+        std::fs::create_dir_all(old.join("pip-26.1.2.dist-info")).unwrap();
+        std::fs::write(venv.join("pyvenv.cfg"), "version = 3.14.2\n").unwrap();
+        // Same Python: fine.
+        assert!(!venv_is_stale(&venv, "3.14", "oci-cli"));
+        // Config says an older Python than PATH has.
+        assert!(venv_is_stale(&venv, "3.15", "oci-cli"));
+        // Config already rewritten, a fresh venv holds only pip, the tool is stranded.
+        std::fs::write(venv.join("pyvenv.cfg"), "version = 3.15.2\n").unwrap();
+        let new = venv.join("lib/python3.15/site-packages");
+        std::fs::create_dir_all(new.join("pip-26.1.2.dist-info")).unwrap();
+        assert!(venv_is_stale(&venv, "3.15", "oci-cli"));
+        // Once the tool is installed for the current Python it is healthy again.
+        std::fs::create_dir_all(new.join("oci_cli-3.97.1.dist-info")).unwrap();
+        assert!(!venv_is_stale(&venv, "3.15", "oci-cli"));
+    }
+
+    #[test]
+    fn node_major_parses_versions() {
+        assert_eq!(super::node_major("v20.11.1\n"), Some(20));
+        assert_eq!(super::node_major("18.0.0"), Some(18));
+        assert_eq!(super::node_major("garbage"), None);
+    }
 
     #[cfg(unix)]
     #[test]

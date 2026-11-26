@@ -1,5 +1,5 @@
 use crate::platform::PackageManager;
-use crate::state::State;
+use crate::state::{State, ToolEntry};
 use crate::tool::{InstallStrategy, Tool};
 use crate::ui::output;
 use clap::Args;
@@ -29,39 +29,74 @@ fn resolve_latest(tool: &Tool, state: &State) -> Option<String> {
     tool.version_source.resolve().ok()
 }
 
+/// Maximum concurrent version checks: enough to hide latency without hammering
+/// the GitHub API (unauthenticated requests are rate limited).
+const MAX_WORKERS: usize = 8;
+
+/// Map `f` over `items` on up to `MAX_WORKERS` threads, returning results in the
+/// original order.
+fn parallel_map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Mutex;
+
+    let next = AtomicUsize::new(0);
+    let results: Mutex<Vec<Option<R>>> = Mutex::new((0..items.len()).map(|_| None).collect());
+    std::thread::scope(|scope| {
+        for _ in 0..MAX_WORKERS.min(items.len()) {
+            scope.spawn(|| loop {
+                let i = next.fetch_add(1, Ordering::Relaxed);
+                let Some(item) = items.get(i) else { break };
+                let r = f(item);
+                results.lock().unwrap()[i] = Some(r);
+            });
+        }
+    });
+    results
+        .into_inner()
+        .unwrap()
+        .into_iter()
+        .map(|r| r.expect("every item is processed"))
+        .collect()
+}
+
 #[derive(Debug, Args)]
 pub struct OutdatedArgs {}
 
 pub fn run(_args: &OutdatedArgs, state: &State, tools: &[Tool]) -> anyhow::Result<()> {
     struct OutdatedEntry<'a> {
         name: &'a str,
-        installed: &'a str,
+        installed: String,
         latest: String,
         pinned: bool,
     }
 
+    // Installed tools only; the version command and the upstream lookup for each one
+    // are slow (a subprocess and a network call), so they run on a small worker pool.
+    let installed_tools: Vec<(&Tool, &ToolEntry)> = tools
+        .iter()
+        .filter_map(|t| match state.get_entry(&t.id) {
+            Some(e) if !e.version.is_empty() => Some((t, e)),
+            _ => None,
+        })
+        .collect();
+    let checked = installed_tools.len();
+    let checks = parallel_map(&installed_tools, |(t, entry)| {
+        let installed = t
+            .installed_version(Some(&entry.version))
+            .unwrap_or_else(|| entry.version.clone());
+        let latest = resolve_latest(t, state);
+        (installed, latest)
+    });
+
     let mut outdated: Vec<OutdatedEntry> = Vec::new();
-    let mut checked = 0usize;
-
-    for t in tools {
-        let entry = match state.get_entry(&t.id) {
-            Some(e) if !e.version.is_empty() => e,
-            _ => continue,
-        };
-        checked += 1;
-
-        let latest = match resolve_latest(t, state) {
-            Some(v) => v,
-            None => continue,
-        };
-
-        if latest == entry.version {
+    for ((t, entry), (installed, latest)) in installed_tools.iter().zip(checks) {
+        let Some(latest) = latest else { continue };
+        if latest == installed {
             continue;
         }
-
         outdated.push(OutdatedEntry {
             name: &t.name,
-            installed: &entry.version,
+            installed,
             latest,
             pinned: entry.pinned,
         });
@@ -113,4 +148,28 @@ pub fn run(_args: &OutdatedArgs, state: &State, tools: &[Tool]) -> anyhow::Resul
 
     eprintln!("\nRun 'dot upgrade' to upgrade all (pinned skipped unless --force).\n");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parallel_map_keeps_order_and_runs_concurrently() {
+        let items: Vec<u64> = (0..20).collect();
+        let start = std::time::Instant::now();
+        let out = parallel_map(&items, |n| {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            n * 2
+        });
+        assert_eq!(out, (0..20).map(|n| n * 2).collect::<Vec<_>>());
+        // 20 x 100ms sequentially is 2s; with 8 workers it is about 300ms.
+        assert!(start.elapsed() < std::time::Duration::from_millis(1200));
+    }
+
+    #[test]
+    fn parallel_map_handles_empty_input() {
+        let out: Vec<u8> = parallel_map(&Vec::<u8>::new(), |n| *n);
+        assert!(out.is_empty());
+    }
 }

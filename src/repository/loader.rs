@@ -66,7 +66,7 @@ mod tests {
     #[test]
     fn builtin_repo_parses_all_tools() {
         let tools = parse_repository_json(BUILTIN_REPO_BYTES).unwrap();
-        assert_eq!(tools.len(), 42);
+        assert_eq!(tools.len(), 56);
     }
 
     #[test]

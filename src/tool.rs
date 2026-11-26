@@ -8,6 +8,7 @@ pub const METHOD_DIRECT_BINARY: &str = "direct_binary";
 pub const METHOD_HASHICORP: &str = "hashicorp_release";
 pub const METHOD_SYSTEM_PACKAGE: &str = "system_package";
 pub const METHOD_PIP_VENV: &str = "pip_venv";
+pub const METHOD_NPM: &str = "npm";
 pub const METHOD_TARBALL: &str = "tarball";
 pub const METHOD_SCRIPT_INSTALLER: &str = "script_installer";
 
@@ -69,6 +70,11 @@ pub struct PypiSourceParams {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NpmSourceParams {
+    pub package: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct StaticSourceParams {
     pub version: String,
 }
@@ -81,10 +87,12 @@ pub enum VersionSource {
     Hashicorp(HashicorpSourceParams),
     K8sStableTxt,
     Pypi(PypiSourceParams),
+    Npm(NpmSourceParams),
     Static(StaticSourceParams),
     GcloudSdk,
     Ziglang,
     GoDl,
+    NodeLts,
     RustStable,
 }
 
@@ -95,9 +103,11 @@ const GITHUB_API_TAGS: &str = "https://api.github.com/repos/{}/tags";
 const HASHICORP_CHECKPOINT: &str = "https://checkpoint-api.hashicorp.com/v1/check/{}";
 const K8S_STABLE_TXT: &str = "https://dl.k8s.io/release/stable.txt";
 const PYPI_JSON: &str = "https://pypi.org/pypi/{}/json";
+const NPM_LATEST: &str = "https://registry.npmjs.org/{}/latest";
 const GCLOUD_COMPONENTS: &str =
     "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json";
 const ZIGLANG_INDEX: &str = "https://ziglang.org/download/index.json";
+const NODE_INDEX: &str = "https://nodejs.org/dist/index.json";
 const GO_DOWNLOADS: &str = "https://go.dev/dl/?mode=json";
 const RUST_STABLE_CHANNEL: &str = "https://static.rust-lang.org/dist/channel-rust-stable.toml";
 
@@ -164,6 +174,22 @@ impl VersionSource {
                 Ok(r.info.version)
             }
 
+            VersionSource::Npm(p) => {
+                let url = NPM_LATEST.replace("{}", &p.package);
+                let body = http::get(&url).map_err(|_| DotError::VersionFetchFailed)?;
+                #[derive(serde::Deserialize)]
+                struct Resp {
+                    #[serde(default)]
+                    version: String,
+                }
+                let r: Resp =
+                    serde_json::from_str(&body).map_err(|_| DotError::VersionParseFailed)?;
+                if r.version.is_empty() {
+                    return Err(DotError::VersionNotFound);
+                }
+                Ok(r.version)
+            }
+
             VersionSource::GcloudSdk => {
                 let body =
                     http::get(GCLOUD_COMPONENTS).map_err(|_| DotError::VersionFetchFailed)?;
@@ -215,6 +241,25 @@ impl VersionSource {
                     return Ok(ver);
                 }
                 Err(DotError::VersionNotFound)
+            }
+
+            VersionSource::NodeLts => {
+                let body = http::get(NODE_INDEX).map_err(|_| DotError::VersionFetchFailed)?;
+                #[derive(serde::Deserialize)]
+                struct Entry {
+                    #[serde(default)]
+                    version: String,
+                    // `false` for non-LTS releases, the codename string for LTS ones.
+                    #[serde(default)]
+                    lts: serde_json::Value,
+                }
+                let entries: Vec<Entry> =
+                    serde_json::from_str(&body).map_err(|_| DotError::VersionParseFailed)?;
+                entries
+                    .into_iter()
+                    .find(|e| e.lts.is_string())
+                    .map(|e| e.version.trim_start_matches('v').to_string())
+                    .ok_or(DotError::VersionNotFound)
             }
 
             VersionSource::RustStable => {
@@ -389,6 +434,21 @@ pub struct PipVenvStrategy {
     pub extra_binaries: Vec<String>,
 }
 
+/// Installs an npm package into its own prefix (`npm install --prefix <dir>`)
+/// and symlinks its binaries into the bin dir. Requires `node` and `npm`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NpmStrategy {
+    pub package: String,
+    pub install_dir_rel: String,
+    pub binary_name: String,
+    #[serde(default)]
+    pub extra_binaries: Vec<String>,
+    /// Minimum Node.js major version the package supports; the install fails early
+    /// with a clear message when the `node` on PATH is older.
+    #[serde(default)]
+    pub min_node_major: Option<u32>,
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TarballStrategy {
     pub url_template: String,
@@ -431,6 +491,7 @@ pub enum InstallStrategy {
     HashicorpRelease(HashicorpReleaseStrategy),
     SystemPackage(SystemPackageStrategy),
     PipVenv(PipVenvStrategy),
+    Npm(NpmStrategy),
     Tarball(TarballStrategy),
     ScriptInstaller(ScriptInstallerStrategy),
 }
@@ -443,6 +504,7 @@ impl InstallStrategy {
             InstallStrategy::HashicorpRelease(_) => METHOD_HASHICORP,
             InstallStrategy::SystemPackage(_) => METHOD_SYSTEM_PACKAGE,
             InstallStrategy::PipVenv(_) => METHOD_PIP_VENV,
+            InstallStrategy::Npm(_) => METHOD_NPM,
             InstallStrategy::Tarball(_) => METHOD_TARBALL,
             InstallStrategy::ScriptInstaller(_) => METHOD_SCRIPT_INSTALLER,
         }
@@ -458,6 +520,26 @@ impl InstallStrategy {
         match self {
             InstallStrategy::GithubRelease(s) => &s.extra_symlinks,
             _ => &[],
+        }
+    }
+
+    /// Every name this strategy links into the bin dir besides the tool's own
+    /// binary, for uninstall cleanup. Unlike `extra_symlinks` these are real
+    /// separate binaries (not aliases of the primary one), so they must not be
+    /// recreated by pointing at it.
+    pub fn extra_bin_links(&self) -> Vec<String> {
+        match self {
+            InstallStrategy::GithubRelease(s) => s.extra_symlinks.clone(),
+            InstallStrategy::PipVenv(s) => s.extra_binaries.clone(),
+            InstallStrategy::Npm(s) => s.extra_binaries.clone(),
+            // Tarball symlinks are paths inside the SDK (e.g. "bin/npm"); the link
+            // in the bin dir is named after the file.
+            InstallStrategy::Tarball(s) => s
+                .symlinks
+                .iter()
+                .filter_map(|p| p.rsplit('/').next().map(str::to_string))
+                .collect(),
+            _ => Vec::new(),
         }
     }
 }
@@ -534,6 +616,127 @@ pub struct Tool {
     /// install when its `auto_detect` shell condition is true - see `ToolVariant`.
     #[serde(default)]
     pub variants: HashMap<String, ToolVariant>,
+    /// Shell command that prints the version actually installed (e.g.
+    /// `kubectl version --client`). Defaults to `<binary> --version`; set to an
+    /// empty string to disable detection for tools with no usable version output.
+    /// Needed because self-updating tools make the version recorded in state stale.
+    #[serde(default)]
+    pub version_command: Option<String>,
+}
+
+impl Tool {
+    /// The command used to detect the on-disk version, if any. System packages are
+    /// skipped (the package manager is the source of truth for those).
+    fn effective_version_command(&self) -> Option<String> {
+        match self.version_command.as_deref() {
+            Some("") => return None,
+            Some(c) => return Some(c.to_string()),
+            None => {}
+        }
+        let bin = match &self.strategy {
+            InstallStrategy::SystemPackage(_) => return None,
+            InstallStrategy::PipVenv(p) => p.binary_name.as_str(),
+            InstallStrategy::Npm(n) => n.binary_name.as_str(),
+            _ => self.id.as_str(),
+        };
+        Some(format!("{bin} --version"))
+    }
+
+    /// Binary names `doctor` should look for: the tool id, plus the executable named
+    /// by `version_command` when it differs (e.g. tool `rust` ships `rustc`).
+    pub fn binary_names(&self) -> Vec<String> {
+        let mut names = vec![self.id.clone()];
+        if let Some(first) = self
+            .effective_version_command()
+            .and_then(|c| c.split_whitespace().next().map(str::to_string))
+        {
+            if !names.contains(&first) {
+                names.push(first);
+            }
+        }
+        names
+    }
+
+    /// Version of the tool as it is on disk right now: the output of its version
+    /// command if it runs and parses, otherwise the version recorded in state.
+    pub fn installed_version(&self, recorded: Option<&str>) -> Option<String> {
+        if let Some(cmd) = self.effective_version_command() {
+            if let Some(v) = run_version_command(&cmd, VERSION_COMMAND_TIMEOUT) {
+                return Some(v);
+            }
+        }
+        recorded.map(str::to_string)
+    }
+}
+
+/// How long a version command may run before it is killed and the recorded
+/// version is used instead (a hung or prompting command must not block `dot`).
+const VERSION_COMMAND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Run `cmd` via `sh -c` and parse a version from its stdout. Returns `None` if it
+/// fails, prints nothing parseable, or does not finish within `timeout` (in which
+/// case the whole process group is killed).
+fn run_version_command(cmd: &str, timeout: std::time::Duration) -> Option<String> {
+    use std::io::Read;
+    use std::os::unix::process::CommandExt;
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
+
+    let mut child = Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        // Own process group, so a timeout can kill the command and its children.
+        .process_group(0)
+        .spawn()
+        .ok()?;
+    let mut stdout = child.stdout.take()?;
+    // Read on a thread so a chatty command cannot fill the pipe and stall `wait`.
+    let reader = std::thread::spawn(move || {
+        let mut buf = String::new();
+        let _ = stdout.read_to_string(&mut buf);
+        buf
+    });
+
+    let start = Instant::now();
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if start.elapsed() < timeout => {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            _ => {
+                let _ = Command::new("kill")
+                    .args(["-KILL", "--", &format!("-{}", child.id())])
+                    .stderr(Stdio::null())
+                    .status();
+                let _ = child.kill();
+                let _ = child.wait();
+                // The reader thread ends once the killed group closes the pipe.
+                return None;
+            }
+        }
+    };
+    let out = reader.join().ok()?;
+    status.success().then(|| parse_version(&out)).flatten()
+}
+
+/// Extract the first dotted-number version from command output, e.g. "2.1.5" from
+/// "2.1.5 (Claude Code)", "3.14.0" from "v3.14.0+g3f4e7a5" or "1.22.1" from
+/// "go1.22.1". Any prefix before the first digit is dropped, and build metadata or
+/// pre-release suffixes after the numeric part are ignored.
+pub fn parse_version(output: &str) -> Option<String> {
+    output.split_whitespace().find_map(|tok| {
+        let tok = tok.trim_start_matches(|c: char| !c.is_ascii_digit());
+        let end = tok
+            .find(|c: char| !c.is_ascii_digit() && c != '.')
+            .unwrap_or(tok.len());
+        let v = tok[..end].trim_end_matches('.');
+        let parts: Vec<&str> = v.split('.').collect();
+        (parts.len() >= 2 && parts.iter().all(|p| !p.is_empty())).then(|| v.to_string())
+    })
 }
 
 /// An alternate install strategy for a `Tool`, selectable by name.
@@ -586,6 +789,12 @@ mod tests {
     }
 
     #[test]
+    fn deserialize_node_lts() {
+        let vs: VersionSource = serde_json::from_str(r#"{"type":"node_lts"}"#).unwrap();
+        assert!(matches!(vs, VersionSource::NodeLts));
+    }
+
+    #[test]
     fn deserialize_go_dl() {
         let json = r#"{"type":"go_dl"}"#;
         let vs: VersionSource = serde_json::from_str(json).unwrap();
@@ -605,6 +814,87 @@ mod tests {
             r#"{"type":"script_installer","url_template":"https://sh.rustup.rs","args":["-y"]}"#;
         let s: InstallStrategy = serde_json::from_str(json).unwrap();
         assert!(matches!(s, InstallStrategy::ScriptInstaller(_)));
+    }
+
+    #[test]
+    fn parse_version_extracts_semver() {
+        assert_eq!(
+            parse_version("2.1.5 (Claude Code)\n").as_deref(),
+            Some("2.1.5")
+        );
+        assert_eq!(
+            parse_version("tool version v1.2.3").as_deref(),
+            Some("1.2.3")
+        );
+        assert_eq!(parse_version("no version here"), None);
+        assert_eq!(parse_version("v3.14.0+g3f4e7a5").as_deref(), Some("3.14.0"));
+        assert_eq!(
+            parse_version("argocd: v2.10.1+a79e0ea").as_deref(),
+            Some("2.10.1")
+        );
+        assert_eq!(
+            parse_version("go version go1.22.1 linux/amd64").as_deref(),
+            Some("1.22.1")
+        );
+        assert_eq!(
+            parse_version("aws-cli/2.40.0 Python/3.14.8").as_deref(),
+            Some("2.40.0")
+        );
+        assert_eq!(parse_version("1.2.3-rc1").as_deref(), Some("1.2.3"));
+    }
+
+    #[test]
+    fn deserialize_npm_strategy_and_source() {
+        let json = r#"{"type":"npm","package":"wrangler","install_dir_rel":"~/.local/opt/wrangler","binary_name":"wrangler"}"#;
+        let s: InstallStrategy = serde_json::from_str(json).unwrap();
+        assert!(matches!(s, InstallStrategy::Npm(_)));
+        assert_eq!(s.method_name(), "npm");
+        let vs: VersionSource =
+            serde_json::from_str(r#"{"type":"npm","package":"wrangler"}"#).unwrap();
+        assert!(matches!(vs, VersionSource::Npm(_)));
+    }
+
+    #[test]
+    fn version_command_times_out_and_kills_slow_commands() {
+        use std::time::{Duration, Instant};
+        let start = Instant::now();
+        assert_eq!(
+            run_version_command("sleep 30", Duration::from_millis(200)),
+            None
+        );
+        assert!(start.elapsed() < Duration::from_secs(5));
+        // A slow command with a child process is killed as a group too.
+        let start = Instant::now();
+        assert_eq!(
+            run_version_command("sleep 30 && echo 1.2.3", Duration::from_millis(200)),
+            None
+        );
+        assert!(start.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn version_command_returns_version_when_fast() {
+        use std::time::Duration;
+        assert_eq!(
+            run_version_command("echo tool 1.2.3", Duration::from_secs(5)).as_deref(),
+            Some("1.2.3")
+        );
+        assert_eq!(
+            run_version_command("echo 1.2.3; exit 1", Duration::from_secs(5)),
+            None
+        );
+    }
+
+    #[test]
+    fn binary_names_include_version_command_executable() {
+        let tools = crate::repository::loader::parse_repository_json(include_bytes!(
+            "repository/builtin-repository.json"
+        ))
+        .unwrap();
+        let rust = tools.iter().find(|t| t.id == "rust").unwrap();
+        assert_eq!(rust.binary_names(), ["rust", "rustc"]);
+        let jq = tools.iter().find(|t| t.id == "jq").unwrap();
+        assert_eq!(jq.binary_names(), ["jq"]);
     }
 
     #[test]
