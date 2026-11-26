@@ -1283,7 +1283,8 @@
                 "type": "npm",
                 "package": "wrangler",
                 "install_dir_rel": "~/.local/opt/wrangler",
-                "binary_name": "wrangler"
+                "binary_name": "wrangler",
+                "min_node_major": 20
             }
         }
     ]

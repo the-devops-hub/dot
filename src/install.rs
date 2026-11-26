@@ -349,6 +349,17 @@ fn node_install_hint() -> &'static str {
     }
 }
 
+/// Major version from `node --version` output such as "v20.11.1".
+fn node_major(version: &str) -> Option<u32> {
+    version
+        .trim()
+        .trim_start_matches('v')
+        .split('.')
+        .next()?
+        .parse()
+        .ok()
+}
+
 fn execute_npm(s: &crate::tool::NpmStrategy, ctx: &InstallContext) -> anyhow::Result<()> {
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/root"));
     let install_dir = if s.install_dir_rel.starts_with("~/") {
@@ -363,6 +374,23 @@ fn execute_npm(s: &crate::tool::NpmStrategy, ctx: &InstallContext) -> anyhow::Re
             node_install_hint()
         ));
         anyhow::bail!(crate::error::DotError::NodeNotFound);
+    }
+
+    if let Some(required) = s.min_node_major {
+        let out = std::process::Command::new("node")
+            .arg("--version")
+            .output()
+            .context("run node --version")?;
+        let found = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        // An unparseable version is let through: npm itself will still complain if
+        // the package really cannot run.
+        if node_major(&found).is_some_and(|m| m < required) {
+            output::print_detail("upgrade with: dot install node --force");
+            anyhow::bail!(crate::error::DotError::NodeTooOld {
+                found: found.trim_start_matches('v').to_string(),
+                required,
+            });
+        }
     }
 
     std::fs::create_dir_all(&install_dir)?;
@@ -536,6 +564,13 @@ fn execute_script_installer(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn node_major_parses_versions() {
+        assert_eq!(super::node_major("v20.11.1\n"), Some(20));
+        assert_eq!(super::node_major("18.0.0"), Some(18));
+        assert_eq!(super::node_major("garbage"), None);
+    }
+
     use super::*;
     use tempfile::TempDir;
 

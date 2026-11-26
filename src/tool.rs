@@ -443,6 +443,10 @@ pub struct NpmStrategy {
     pub binary_name: String,
     #[serde(default)]
     pub extra_binaries: Vec<String>,
+    /// Minimum Node.js major version the package supports; the install fails early
+    /// with a clear message when the `node` on PATH is older.
+    #[serde(default)]
+    pub min_node_major: Option<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
